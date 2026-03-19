@@ -41,12 +41,12 @@ if not exist "%COMPUTER_PATH%" mkdir "%COMPUTER_PATH%"
 if not exist "%LOGS_PATH%" mkdir "%LOGS_PATH%"
 if not exist "%DEPLOYMENT_ERRORS_PATH%" mkdir "%DEPLOYMENT_ERRORS_PATH%"
 
-echo [1/7] Сбор информации об аппаратной конфигурации и ОС...
+echo [1/8] Сбор информации об аппаратной конфигурации и ОС...
 :: Запускаем dxdiag и сохраняем результат
 start /wait dxdiag /whql:off /t "%COMPUTER_PATH%\%COMPUTER_NAME%_diag.txt"
 echo    - Диагностика сохранена в %COMPUTER_NAME%_diag.txt
 
-echo [2/7] Сбор информации о компонентах 1С...
+echo [2/8] Сбор информации о компонентах 1С...
 set "COMPONENTS_FILE=%COMPUTER_PATH%\installed_versions.txt"
 (
     echo ========================================
@@ -66,7 +66,7 @@ if exist "C:\Program Files\1C\1CE\components" (
 )
 echo    - Список компонентов сохранен в installed_versions.txt
 
-echo [3/7] Копирование логов 1С...
+echo [3/8] Копирование логов 1С...
 :: Формируем путь к папке с логами
 set "USER_PATH=%HOMEDRIVE%%HOMEPATH%"
 set "LOGS_SOURCE=%USER_PATH%\1c-enterprise-element\.storage\logs"
@@ -148,7 +148,7 @@ if exist "%LOGS_SOURCE%" (
     echo Папка %LOGS_SOURCE% не существует > "%LOGS_PATH%\source_not_exists.txt"
 )
 
-echo [4/7] Копирование deployment_errors (папки 1ce-installer из TEMP)...
+echo [4/8] Копирование deployment_errors (папки 1ce-installer из TEMP)...
 set "TEMP_PATH=%TEMP%"
 
 :: Копирование папки 1ce-installer-crash (всегда копируем, если существует)
@@ -223,7 +223,7 @@ if defined LATEST_INSTALLER_FOLDER (
     echo Папки 1ce-installer-20* не найдены > "%DEPLOYMENT_ERRORS_PATH%\installer_not_found.txt"
 )
 
-echo [5/7] Сбор информации о запущенных процессах...
+echo [5/8] Сбор информации о запущенных процессах...
 set "PROCESSES_FILE=%COMPUTER_PATH%\processes.txt"
 
 :: Получаем список процессов в CSV формате (удобно для импорта в Excel)
@@ -261,7 +261,7 @@ tasklist /fo csv 2>nul | find /c /v "" >> "%PROCESSES_FILE%"
 
 echo    - Информация о процессах сохранена в processes.txt (CSV формат)
 
-echo [6/7] Обработка недавних рабочих пространств (recentworkspace)...
+echo [6/8] Копирование рабочих пространств (recentworkspace)...
 
 REM === НАСТРОЙКИ ===
 set "INPUT_FILE=%USERPROFILE%\1c-enterprise-element\.storage\recentworkspace.json"
@@ -309,37 +309,55 @@ for /f "tokens=1* delims=," %%a in ("!JSON_CONTENT!") do (
     if exist "!WIN_PATH!\*" (
         REM ===== ЭТО ПАПКА (проект) =====
         for %%F in ("!WIN_PATH!") do set "PROJECT_NAME=%%~nxF"
+        set "TARGET_DIR=!WORKSPACE_DIR!\!PROJECT_NAME!"
+        if not exist "!TARGET_DIR!" mkdir "!TARGET_DIR!"
 
-        set "OUT_FILE=!WORKSPACE_DIR!\!PROJECT_NAME!.txt"
-        echo      [ПАПКА] Список файлов проекта -^> "!OUT_FILE!"
-
-        (
-            echo ========================================================
-            echo PROJECT: !WIN_PATH!
-            echo Дата сбора: %DATE% %TIME%
-            echo ========================================================
-            echo.
-        ) > "!OUT_FILE!"
-
-        REM Рекурсивный список всех файлов в папке проекта
-        dir /s /b "!WIN_PATH!" >> "!OUT_FILE!" 2>nul
+        echo      [ПАПКА] Копирование содержимого в "!TARGET_DIR!"
+        xcopy "!WIN_PATH!" "!TARGET_DIR!\" /e /i /y /q >nul
+        if errorlevel 1 (
+            echo      - ОШИБКА при копировании папки
+        ) else (
+            echo      - Папка скопирована успешно
+        )
 
     ) else if exist "!WIN_PATH!" (
         REM ===== ЭТО ФАЙЛ =====
-        for %%F in ("!WIN_PATH!") do set "FILE_NAME=%%~nF"
+        for %%F in ("!WIN_PATH!") do set "FILENAME=%%~nxF"
+        set "TARGET_FILE=!WORKSPACE_DIR!\!FILENAME!"
 
-        set "OUT_FILE=!WORKSPACE_DIR!\!FILE_NAME!.txt"
-        echo      [ФАЙЛ] Содержимое -^> "!OUT_FILE!"
+        REM Проверяем, существует ли уже файл с таким именем
+        if exist "!TARGET_FILE!" (
+            REM Если существует, добавляем числовой суффикс
+            set "base=!FILENAME:~0,-4!"
+            set "ext=!FILENAME:~-4!"
+            if "!ext!"==".!ext!" (
+                rem с расширением
+                set "counter=1"
+                :loop_file
+                if exist "!WORKSPACE_DIR!\!base!_!counter!!ext!" (
+                    set /a counter+=1
+                    goto loop_file
+                )
+                set "TARGET_FILE=!WORKSPACE_DIR!\!base!_!counter!!ext!"
+            ) else (
+                rem без расширения
+                set "counter=1"
+                :loop_file_noext
+                if exist "!WORKSPACE_DIR!\!base!_!counter!" (
+                    set /a counter+=1
+                    goto loop_file_noext
+                )
+                set "TARGET_FILE=!WORKSPACE_DIR!\!base!_!counter!"
+            )
+        )
 
-        (
-            echo ========================================================
-            echo SOURCE: !WIN_PATH!
-            echo Дата сбора: %DATE% %TIME%
-            echo ========================================================
-            echo.
-        ) > "!OUT_FILE!"
-
-        type "!WIN_PATH!" >> "!OUT_FILE!" 2>nul
+        echo      [ФАЙЛ] Копирование в "!TARGET_FILE!"
+        copy "!WIN_PATH!" "!TARGET_FILE!" /y >nul
+        if errorlevel 1 (
+            echo      - ОШИБКА при копировании файла
+        ) else (
+            echo      - Файл скопирован успешно
+        )
 
     ) else (
         echo      [НЕ НАЙДЕНО] !WIN_PATH!
@@ -348,11 +366,28 @@ for /f "tokens=1* delims=," %%a in ("!JSON_CONTENT!") do (
     if defined JSON_CONTENT goto ParseLoopWS
 )
 
-echo    - Обработка рабочих пространств завершена
+echo    - Копирование рабочих пространств завершено
 
 :SkipWorkspaces
 
-echo [7/7] Создание сводного отчета...
+echo [7/8] Сбор информации о Java...
+set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
+(
+    echo ========================================
+    echo      ИНФОРМАЦИЯ О JAVA
+    echo ========================================
+    echo Компьютер: %COMPUTER_NAME%
+    echo Дата сбора: %DATE% %TIME%
+    echo ========================================
+    echo.
+    java -version 2>&1
+    echo.
+    echo --- Переменные окружения, связанные с Java ---
+    set | findstr /i "java"
+) > "%JAVA_REPORT%" 2>nul
+echo    - Информация о Java сохранена в java_report.txt
+
+echo [8/8] Создание сводного отчета...
 set "SUMMARY_FILE=%COMPUTER_PATH%\summary_report.txt"
 (
     echo ====================================================
@@ -469,10 +504,26 @@ if exist "%DEPLOYMENT_ERRORS_PATH%" (
 if exist "%WORKSPACE_DIR%" (
     echo Папка: %WORKSPACE_DIR% >> "%SUMMARY_FILE%"
     echo. >> "%SUMMARY_FILE%"
-    echo Найденные файлы: >> "%SUMMARY_FILE%"
+    echo Скопированные элементы: >> "%SUMMARY_FILE%"
     dir "%WORKSPACE_DIR%" /b 2>nul >> "%SUMMARY_FILE%"
 ) else (
     echo Папка workspaces не создана >> "%SUMMARY_FILE%"
+)
+
+(
+    echo.
+    echo ====================================================
+    echo 7. JAVA
+    echo ====================================================
+) >> "%SUMMARY_FILE%"
+
+if exist "%JAVA_REPORT%" (
+    echo Файл: java_report.txt >> "%SUMMARY_FILE%"
+    echo Содержимое: >> "%SUMMARY_FILE%"
+    echo ---------------------------------------- >> "%SUMMARY_FILE%"
+    type "%JAVA_REPORT%" >> "%SUMMARY_FILE%"
+) else (
+    echo Файл java_report.txt не создан >> "%SUMMARY_FILE%"
 )
 
 (
@@ -494,17 +545,6 @@ if not exist "%COMPUTERS_LIST_FILE%" (
     echo ==================================================== >> "%COMPUTERS_LIST_FILE%"
 )
 
-:: java report
-set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
-(
-    echo =================================
-    echo java --version report
-    echo ===============================
-    java --version
-
-) >> "%JAVA_REPORT%"
-
-
 :: Добавляем запись о текущем компьютере
 echo %DATE% ^| %TIME% ^| %COMPUTER_NAME% >> "%COMPUTERS_LIST_FILE%"
 
@@ -523,6 +563,7 @@ echo   +-- %COMPUTER_NAME%\
 echo       +-- %COMPUTER_NAME%_diag.txt
 echo       +-- installed_versions.txt
 echo       +-- processes.txt
+echo       +-- java_report.txt
 echo       +-- summary_report.txt
 echo       +-- logs\
 echo       ^|   +-- [папка_с_самыми_свежими_логами]\
@@ -530,11 +571,9 @@ echo       +-- deployment_errors\
 echo       ^|   +-- 1ce-installer-crash\ (если найдена)
 echo       ^|   +-- 1ce-installer-20*\ (самая свежая)
 echo       +-- workspaces\
-echo           +-- [ИмяПроекта].txt (список файлов для папок)
-echo           +-- [ИмяФайла].txt (содержимое для файлов)
+echo           +-- [ИмяПроекта]\      (скопированная папка проекта)
+echo           +-- [ИмяФайла]         (скопированный файл)
 echo.
 echo Сводный отчет: %SUMMARY_FILE%
 echo.
 echo Список компьютеров за %DATE_FOLDER%: %COMPUTERS_LIST_FILE%
-
-:: Скрипт завершается автоматически без паузы

@@ -1,6 +1,0 @@
-========================================================
-PROJECT: /home/max/1c-enterprise-element/projects/meow
-Дата сбора: 19.03.2026 19:08:51
-========================================================
-
-/home/max/1c-enterprise-element/projects/meow/Скрипт.sbsl

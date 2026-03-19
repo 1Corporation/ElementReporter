@@ -3,7 +3,7 @@
 
 # ====================================================================
 #  Скрипт сбора информации о системе (Linux-версия)
-#  Обновлён: добавлен сбор информации о Java
+#  Обновлён: пункт 6 — копирование рабочих пространств целиком
 # ====================================================================
 
 # Настройка кодировки
@@ -356,9 +356,9 @@ PROCESSES_CSV="$COMPUTER_PATH/processes.csv"
 echo "   - Информация о процессах сохранена в processes.txt и processes.csv"
 
 # ====================================================================
-#  [6/8] Обработка недавних рабочих пространств (recentworkspace)
+#  [6/8] Копирование рабочих пространств (recentworkspace)
 # ====================================================================
-echo "[6/8] Обработка недавних рабочих пространств (recentworkspace)..."
+echo "[6/8] Копирование рабочих пространств (recentworkspace)..."
 
 INPUT_FILE="$HOME/1c-enterprise-element/.storage/recentworkspace.json"
 WORKSPACE_DIR="$COMPUTER_PATH/workspaces"
@@ -385,6 +385,7 @@ for uri in data.get('recentRoots', []):
     print(uri)
 " 2>/dev/null)
     else
+        # Ручной разбор без внешних инструментов
         PATHS_LIST=$(echo "$JSON_CONTENT" \
             | sed 's/.*"recentRoots":\[//;s/\].*//' \
             | tr ',' '\n' \
@@ -396,20 +397,27 @@ for uri in data.get('recentRoots', []):
         echo "   - Не удалось извлечь пути из recentworkspace.json"
         echo "Не удалось разобрать JSON" > "$WORKSPACE_DIR/parse_error.txt"
     else
+        # Функция декодирования URI
         decode_uri() {
             local uri="$1"
+            # Убираем file:///
             local path="${uri#file:///}"
+            # Для Linux пути: file:///home/... → /home/...
+            # Проверяем, начинается ли с /
             if [[ "$path" != /* ]]; then
                 path="/$path"
             fi
+            # Декодируем URL-кодированные символы
             if command -v python3 &>/dev/null; then
                 path=$(python3 -c "import urllib.parse; print(urllib.parse.unquote('$path'))" 2>/dev/null)
             else
+                # Ручное декодирование частых случаев
                 path=$(echo "$path" | sed 's/%20/ /g; s/%3A/:/g; s/%23/#/g; s/%25/%/g; s/%2F/\//g')
             fi
             echo "$path"
         }
 
+        # Обрабатываем каждый путь
         while IFS= read -r RAW_PATH; do
             [ -z "$RAW_PATH" ] && continue
 
@@ -417,34 +425,53 @@ for uri in data.get('recentRoots', []):
             echo "   - Обработка: $WIN_PATH"
 
             if [ -d "$WIN_PATH" ]; then
+                # ===== ЭТО ПАПКА (проект) =====
                 PROJECT_NAME=$(basename "$WIN_PATH")
-                OUT_FILE="$WORKSPACE_DIR/${PROJECT_NAME}.txt"
-                echo "     [ПАПКА] Список файлов проекта -> $OUT_FILE"
+                TARGET_DIR="$WORKSPACE_DIR/$PROJECT_NAME"
+                mkdir -p "$TARGET_DIR"
 
-                {
-                    echo "========================================================"
-                    echo "PROJECT: $WIN_PATH"
-                    echo "Дата сбора: $FULL_DATETIME"
-                    echo "========================================================"
-                    echo ""
-                } > "$OUT_FILE"
-
-                find "$WIN_PATH" -type f 2>/dev/null >> "$OUT_FILE"
+                echo "     [ПАПКА] Копирование содержимого в $TARGET_DIR"
+                # Копируем всё содержимое папки рекурсивно
+                cp -r "$WIN_PATH"/* "$TARGET_DIR/" 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    echo "     - Папка скопирована успешно"
+                else
+                    echo "     - ОШИБКА при копировании папки"
+                fi
 
             elif [ -f "$WIN_PATH" ]; then
-                FILE_NAME=$(basename "$WIN_PATH" | sed 's/\.[^.]*$//')
-                OUT_FILE="$WORKSPACE_DIR/${FILE_NAME}.txt"
-                echo "     [ФАЙЛ] Содержимое -> $OUT_FILE"
+                # ===== ЭТО ФАЙЛ =====
+                FILENAME=$(basename "$WIN_PATH")
+                TARGET_FILE="$WORKSPACE_DIR/$FILENAME"
 
-                {
-                    echo "========================================================"
-                    echo "SOURCE: $WIN_PATH"
-                    echo "Дата сбора: $FULL_DATETIME"
-                    echo "========================================================"
-                    echo ""
-                } > "$OUT_FILE"
+                # Проверяем, существует ли уже файл с таким именем
+                if [ -e "$TARGET_FILE" ]; then
+                    # Если существует, добавляем числовой суффикс
+                    base="${FILENAME%.*}"
+                    ext="${FILENAME##*.}"
+                    if [ "$base" = "$FILENAME" ]; then
+                        # нет расширения
+                        counter=1
+                        while [ -e "$WORKSPACE_DIR/${base}_$counter" ]; do
+                            ((counter++))
+                        done
+                        TARGET_FILE="$WORKSPACE_DIR/${base}_$counter"
+                    else
+                        counter=1
+                        while [ -e "$WORKSPACE_DIR/${base}_$counter.$ext" ]; do
+                            ((counter++))
+                        done
+                        TARGET_FILE="$WORKSPACE_DIR/${base}_$counter.$ext"
+                    fi
+                fi
 
-                cat "$WIN_PATH" >> "$OUT_FILE" 2>/dev/null
+                echo "     [ФАЙЛ] Копирование в $TARGET_FILE"
+                cp "$WIN_PATH" "$TARGET_FILE" 2>/dev/null
+                if [ $? -eq 0 ]; then
+                    echo "     - Файл скопирован успешно"
+                else
+                    echo "     - ОШИБКА при копировании файла"
+                fi
 
             else
                 echo "     [НЕ НАЙДЕНО] $WIN_PATH"
@@ -453,7 +480,7 @@ for uri in data.get('recentRoots', []):
         done <<< "$PATHS_LIST"
     fi
 
-    echo "   - Обработка рабочих пространств завершена"
+    echo "   - Копирование рабочих пространств завершено"
 fi
 
 # ====================================================================
@@ -597,7 +624,7 @@ SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
     if [ -d "$WORKSPACE_DIR" ]; then
         echo "Папка: $WORKSPACE_DIR"
         echo ""
-        echo "Найденные файлы:"
+        echo "Скопированные элементы:"
         ls -1 "$WORKSPACE_DIR" 2>/dev/null
     else
         echo "Папка workspaces не создана"
@@ -666,8 +693,8 @@ echo "      +-- deployment_errors/"
 echo "      |   +-- 1ce-installer-crash/ (если найдена)"
 echo "      |   +-- 1ce-installer-20*/ (самая свежая)"
 echo "      +-- workspaces/"
-echo "          +-- [ИмяПроекта].txt (список файлов для папок)"
-echo "          +-- [ИмяФайла].txt (содержимое для файлов)"
+echo "          +-- [ИмяПроекта]/      (скопированная папка проекта)"
+echo "          +-- [ИмяФайла]         (скопированный файл)"
 echo ""
 echo "Сводный отчёт: $SUMMARY_FILE"
 echo "Список компьютеров за $DATE_FOLDER: $COMPUTERS_LIST_FILE"
