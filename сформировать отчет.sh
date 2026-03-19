@@ -1,0 +1,644 @@
+#!/bin/bash
+# -*- coding: utf-8 -*-
+
+# ====================================================================
+#  Скрипт сбора информации о системе (Linux-версия)
+# ====================================================================
+
+# Настройка кодировки
+export LANG=ru_RU.UTF-8 2>/dev/null
+export LC_ALL=ru_RU.UTF-8 2>/dev/null
+
+# ---- Определяем путь к устройству, с которого запущен скрипт ----
+SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+
+# ---- Дата в формате ДДММГГ ----
+DATE_FOLDER=$(date +%d%m%y)
+CURRENT_DATE=$(date +%d.%m.%Y)
+CURRENT_TIME=$(date +%H:%M:%S)
+FULL_DATETIME="$CURRENT_DATE $CURRENT_TIME"
+
+# ---- Имя компьютера ----
+COMPUTER_NAME=$(hostname)
+
+# ---- Иерархия папок ----
+BASE_PATH="$SCRIPT_PATH/$DATE_FOLDER"
+COMPUTER_PATH="$BASE_PATH/$COMPUTER_NAME"
+LOGS_PATH="$COMPUTER_PATH/logs"
+DEPLOYMENT_ERRORS_PATH="$COMPUTER_PATH/deployment_errors"
+
+echo "====================================================="
+echo "       СБОР ИНФОРМАЦИИ О СИСТЕМЕ (Linux)"
+echo "====================================================="
+echo ""
+echo "Путь сохранения: $SCRIPT_PATH"
+echo "Дата: $DATE_FOLDER"
+echo "Компьютер: $COMPUTER_NAME"
+echo ""
+echo "Создание структуры папок..."
+
+# ---- Создаём необходимые папки ----
+mkdir -p "$BASE_PATH"
+mkdir -p "$COMPUTER_PATH"
+mkdir -p "$LOGS_PATH"
+mkdir -p "$DEPLOYMENT_ERRORS_PATH"
+
+# ====================================================================
+#  [1/7] Аппаратная конфигурация и ОС (замена dxdiag)
+# ====================================================================
+echo "[1/7] Сбор информации об аппаратной конфигурации и ОС..."
+
+DIAG_FILE="$COMPUTER_PATH/${COMPUTER_NAME}_diag.txt"
+{
+    echo "========================================================"
+    echo "  ДИАГНОСТИКА СИСТЕМЫ — $COMPUTER_NAME"
+    echo "  Дата сбора: $FULL_DATETIME"
+    echo "========================================================"
+    echo ""
+
+    echo "--- ЯДРО / ОС ---"
+    uname -a 2>/dev/null
+    echo ""
+
+    echo "--- ДИСТРИБУТИВ ---"
+    if [ -f /etc/os-release ]; then
+        cat /etc/os-release
+    elif [ -f /etc/lsb-release ]; then
+        cat /etc/lsb-release
+    elif command -v lsb_release &>/dev/null; then
+        lsb_release -a 2>/dev/null
+    else
+        echo "(информация о дистрибутиве не найдена)"
+    fi
+    echo ""
+
+    echo "--- ПРОЦЕССОР ---"
+    if [ -f /proc/cpuinfo ]; then
+        grep -m1 'model name' /proc/cpuinfo 2>/dev/null
+        grep -c '^processor' /proc/cpuinfo 2>/dev/null | xargs -I{} echo "Логических ядер: {}"
+    fi
+    if command -v lscpu &>/dev/null; then
+        echo ""
+        lscpu 2>/dev/null
+    fi
+    echo ""
+
+    echo "--- ОПЕРАТИВНАЯ ПАМЯТЬ ---"
+    if [ -f /proc/meminfo ]; then
+        grep -E 'MemTotal|MemFree|MemAvailable|SwapTotal|SwapFree' /proc/meminfo 2>/dev/null
+    fi
+    if command -v free &>/dev/null; then
+        echo ""
+        free -h 2>/dev/null
+    fi
+    echo ""
+
+    echo "--- ВИДЕОКАРТА ---"
+    if command -v lspci &>/dev/null; then
+        lspci 2>/dev/null | grep -iE 'vga|3d|display'
+    else
+        echo "(lspci не установлен)"
+    fi
+    echo ""
+
+    echo "--- ДИСКИ ---"
+    if command -v lsblk &>/dev/null; then
+        lsblk -o NAME,SIZE,TYPE,FSTYPE,MOUNTPOINT 2>/dev/null
+    fi
+    echo ""
+    df -hT 2>/dev/null
+    echo ""
+
+    echo "--- СЕТЬ ---"
+    if command -v ip &>/dev/null; then
+        ip addr show 2>/dev/null
+    elif command -v ifconfig &>/dev/null; then
+        ifconfig 2>/dev/null
+    fi
+    echo ""
+
+    echo "--- PCI-УСТРОЙСТВА ---"
+    if command -v lspci &>/dev/null; then
+        lspci 2>/dev/null
+    fi
+    echo ""
+
+    echo "--- USB-УСТРОЙСТВА ---"
+    if command -v lsusb &>/dev/null; then
+        lsusb 2>/dev/null
+    fi
+    echo ""
+
+    echo "--- UPTIME ---"
+    uptime 2>/dev/null
+
+} > "$DIAG_FILE"
+
+echo "   - Диагностика сохранена в ${COMPUTER_NAME}_diag.txt"
+
+# ====================================================================
+#  [2/7] Компоненты 1С
+# ====================================================================
+echo "[2/7] Сбор информации о компонентах 1С..."
+
+COMPONENTS_FILE="$COMPUTER_PATH/installed_versions.txt"
+
+# Возможные пути установки компонентов 1С на Linux
+COMPONENTS_DIRS=(
+    "/opt/1C/1CE/components"
+    "/opt/1c/1ce/components"
+    "/opt/1C/v8.3"
+    "$HOME/.1CE/components"
+    "$HOME/1c-enterprise-element/.storage/components"
+)
+
+{
+    echo "========================================"
+    echo "Компьютер: $COMPUTER_NAME"
+    echo "Дата сбора: $FULL_DATETIME"
+    echo "========================================"
+    echo ""
+
+    FOUND_ANY=0
+    for COMP_DIR in "${COMPONENTS_DIRS[@]}"; do
+        echo "Компоненты 1С в $COMP_DIR:"
+        echo "----------------------------------------"
+        if [ -d "$COMP_DIR" ]; then
+            ls -1d "$COMP_DIR"/*/ 2>/dev/null | xargs -I{} basename "{}"
+            if [ $? -ne 0 ] || [ -z "$(ls -A "$COMP_DIR" 2>/dev/null)" ]; then
+                echo "(папка пуста)"
+            fi
+            FOUND_ANY=1
+        else
+            echo "Папка не найдена: $COMP_DIR"
+        fi
+        echo ""
+    done
+
+    # Дополнительно: ищем установленные пакеты 1С
+    echo "Установленные пакеты 1С (из менеджера пакетов):"
+    echo "----------------------------------------"
+    if command -v dpkg &>/dev/null; then
+        dpkg -l 2>/dev/null | grep -i "1c\|1С" || echo "(не найдены через dpkg)"
+    fi
+    if command -v rpm &>/dev/null; then
+        rpm -qa 2>/dev/null | grep -i "1c\|1С" || echo "(не найдены через rpm)"
+    fi
+    if command -v snap &>/dev/null; then
+        snap list 2>/dev/null | grep -i "1c\|1С" || echo "(не найдены через snap)"
+    fi
+    if command -v flatpak &>/dev/null; then
+        flatpak list 2>/dev/null | grep -i "1c\|1С" || echo "(не найдены через flatpak)"
+    fi
+
+} > "$COMPONENTS_FILE"
+
+echo "   - Список компонентов сохранен в installed_versions.txt"
+
+# ====================================================================
+#  [3/7] Копирование логов 1С
+# ====================================================================
+echo "[3/7] Копирование логов 1С..."
+
+USER_HOME="$HOME"
+LOGS_SOURCE="$USER_HOME/1c-enterprise-element/.storage/logs"
+
+if [ -d "$LOGS_SOURCE" ]; then
+    echo "   - Поиск папок с логами в $LOGS_SOURCE"
+
+    # Находим самую свежую папку по дате модификации
+    LATEST_FOLDER=$(find "$LOGS_SOURCE" -maxdepth 1 -mindepth 1 -type d \
+        -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+    # Если -printf не поддерживается (не GNU find), пробуем альтернативу
+    if [ -z "$LATEST_FOLDER" ]; then
+        LATEST_FOLDER=$(find "$LOGS_SOURCE" -maxdepth 1 -mindepth 1 -type d \
+            -exec stat --format='%Y %n' {} \; 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+    fi
+
+    if [ -n "$LATEST_FOLDER" ] && [ -d "$LATEST_FOLDER" ]; then
+        LATEST_FOLDER_NAME=$(basename "$LATEST_FOLDER")
+        LATEST_DATE=$(stat --format='%y' "$LATEST_FOLDER" 2>/dev/null || stat -f '%Sm' "$LATEST_FOLDER" 2>/dev/null)
+
+        echo "   - Найдена самая свежая папка: $LATEST_FOLDER_NAME"
+        echo "   - Дата последнего изменения: $LATEST_DATE"
+        echo "   - Копирование папки целиком..."
+
+        TARGET_FOLDER="$LOGS_PATH/$LATEST_FOLDER_NAME"
+        mkdir -p "$TARGET_FOLDER"
+
+        if cp -r "$LATEST_FOLDER"/* "$TARGET_FOLDER/" 2>/dev/null; then
+            echo "   - Папка $LATEST_FOLDER_NAME успешно скопирована в $LOGS_PATH"
+            {
+                echo "Источник: $LATEST_FOLDER"
+                echo "Дата копирования: $FULL_DATETIME"
+                echo "Дата последнего изменения исходной папки: $LATEST_DATE"
+            } > "$TARGET_FOLDER/copied_from.txt"
+        else
+            echo "   - ОШИБКА: Не удалось скопировать папку с логами"
+            echo "Ошибка копирования из $LATEST_FOLDER" > "$LOGS_PATH/copy_error.txt"
+        fi
+    else
+        echo "   - Не найдены папки с логами в $LOGS_SOURCE"
+        echo "Папки с логами не найдены" > "$LOGS_PATH/no_logs_found.txt"
+    fi
+else
+    echo "   - Папка с логами не существует: $LOGS_SOURCE"
+    echo "Папка $LOGS_SOURCE не существует" > "$LOGS_PATH/source_not_exists.txt"
+fi
+
+# ====================================================================
+#  [4/7] Копирование deployment_errors (папки 1ce-installer из /tmp)
+# ====================================================================
+echo "[4/7] Копирование deployment_errors (папки 1ce-installer из /tmp)..."
+
+TEMP_PATH="${TMPDIR:-/tmp}"
+
+# Копирование папки 1ce-installer-crash
+if [ -d "$TEMP_PATH/1ce-installer-crash" ]; then
+    echo "   - Найдена папка 1ce-installer-crash"
+    TARGET_CRASH="$DEPLOYMENT_ERRORS_PATH/1ce-installer-crash"
+    mkdir -p "$TARGET_CRASH"
+    cp -r "$TEMP_PATH/1ce-installer-crash"/* "$TARGET_CRASH/" 2>/dev/null
+    echo "   - Папка 1ce-installer-crash скопирована"
+else
+    echo "   - Папка 1ce-installer-crash не найдена в $TEMP_PATH"
+    echo "Папка 1ce-installer-crash не найдена" > "$DEPLOYMENT_ERRORS_PATH/crash_not_found.txt"
+fi
+
+# Поиск и копирование самой свежей папки 1ce-installer-20*
+echo "   - Поиск папок 1ce-installer-20* в $TEMP_PATH"
+
+LATEST_INSTALLER_FOLDER=$(find "$TEMP_PATH" -maxdepth 1 -mindepth 1 -type d \
+    -name '1ce-installer-20*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+
+# Альтернатива без -printf
+if [ -z "$LATEST_INSTALLER_FOLDER" ]; then
+    LATEST_INSTALLER_FOLDER=$(find "$TEMP_PATH" -maxdepth 1 -mindepth 1 -type d \
+        -name '1ce-installer-20*' -exec stat --format='%Y %n' {} \; 2>/dev/null \
+        | sort -rn | head -1 | cut -d' ' -f2-)
+fi
+
+if [ -n "$LATEST_INSTALLER_FOLDER" ] && [ -d "$LATEST_INSTALLER_FOLDER" ]; then
+    LATEST_INSTALLER_NAME=$(basename "$LATEST_INSTALLER_FOLDER")
+    LATEST_INSTALLER_DATE=$(stat --format='%y' "$LATEST_INSTALLER_FOLDER" 2>/dev/null)
+
+    echo "   - Найдена самая свежая папка: $LATEST_INSTALLER_NAME"
+    echo "   - Дата последнего изменения: $LATEST_INSTALLER_DATE"
+
+    TARGET_INSTALLER="$DEPLOYMENT_ERRORS_PATH/$LATEST_INSTALLER_NAME"
+    mkdir -p "$TARGET_INSTALLER"
+
+    if cp -r "$LATEST_INSTALLER_FOLDER"/* "$TARGET_INSTALLER/" 2>/dev/null; then
+        echo "   - Папка $LATEST_INSTALLER_NAME успешно скопирована"
+    else
+        echo "   - ОШИБКА: Не удалось скопировать папку $LATEST_INSTALLER_NAME"
+    fi
+else
+    echo "   - Папки 1ce-installer-20* не найдены в $TEMP_PATH"
+    echo "Папки 1ce-installer-20* не найдены" > "$DEPLOYMENT_ERRORS_PATH/installer_not_found.txt"
+fi
+
+# ====================================================================
+#  [5/7] Сбор информации о запущенных процессах
+# ====================================================================
+echo "[5/7] Сбор информации о запущенных процессах..."
+
+PROCESSES_FILE="$COMPUTER_PATH/processes.txt"
+
+{
+    echo "===================================================="
+    echo "         ЗАПУЩЕННЫЕ ПРОЦЕССЫ"
+    echo "===================================================="
+    echo "Компьютер: $COMPUTER_NAME"
+    echo "Дата и время сбора: $FULL_DATETIME"
+    echo "===================================================="
+    echo ""
+    echo "--- Полный список процессов (ps aux) ---"
+    echo ""
+    ps aux 2>/dev/null
+    echo ""
+    echo "===================================================="
+    echo "         ИНФОРМАЦИЯ О СИСТЕМЕ"
+    echo "===================================================="
+    echo ""
+
+    echo "--- Память ---"
+    free -h 2>/dev/null
+    echo ""
+
+    echo "--- Время работы ---"
+    uptime 2>/dev/null
+    echo ""
+
+    echo "--- Версия ОС ---"
+    uname -a 2>/dev/null
+    echo ""
+
+    TOTAL_PROCS=$(ps aux 2>/dev/null | tail -n +2 | wc -l)
+    echo "Общее количество запущенных процессов: $TOTAL_PROCS"
+
+} > "$PROCESSES_FILE"
+
+# Дополнительно: CSV-формат для совместимости
+PROCESSES_CSV="$COMPUTER_PATH/processes.csv"
+{
+    echo "\"USER\",\"PID\",\"%CPU\",\"%MEM\",\"VSZ\",\"RSS\",\"TTY\",\"STAT\",\"START\",\"TIME\",\"COMMAND\""
+    ps aux --no-headers 2>/dev/null | awk '{
+        cmd = "";
+        for(i=11; i<=NF; i++) cmd = cmd (i>11?" ":"") $i;
+        printf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n",
+            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,cmd
+    }'
+} > "$PROCESSES_CSV" 2>/dev/null
+
+echo "   - Информация о процессах сохранена в processes.txt и processes.csv"
+
+# ====================================================================
+#  [6/7] Обработка недавних рабочих пространств (recentworkspace)
+# ====================================================================
+echo "[6/7] Обработка недавних рабочих пространств (recentworkspace)..."
+
+INPUT_FILE="$HOME/1c-enterprise-element/.storage/recentworkspace.json"
+WORKSPACE_DIR="$COMPUTER_PATH/workspaces"
+mkdir -p "$WORKSPACE_DIR"
+
+echo "   - Поиск конфига: $INPUT_FILE"
+
+if [ ! -f "$INPUT_FILE" ]; then
+    echo "   - [ОШИБКА] Файл recentworkspace.json не найден!"
+    echo "Файл recentworkspace.json не найден" > "$WORKSPACE_DIR/not_found.txt"
+else
+    # ---- Разбор JSON ----
+    # Читаем файл целиком
+    JSON_CONTENT=$(cat "$INPUT_FILE" 2>/dev/null)
+
+    # Пробуем использовать jq, если доступен
+    if command -v jq &>/dev/null; then
+        # Извлекаем массив recentRoots через jq
+        PATHS_LIST=$(jq -r '.recentRoots[]' "$INPUT_FILE" 2>/dev/null)
+    elif command -v python3 &>/dev/null; then
+        # Резервный вариант через python3
+        PATHS_LIST=$(python3 -c "
+import json, sys, urllib.parse
+with open('$INPUT_FILE', 'r') as f:
+    data = json.load(f)
+for uri in data.get('recentRoots', []):
+    print(uri)
+" 2>/dev/null)
+    else
+        # Ручной разбор без внешних инструментов
+        PATHS_LIST=$(echo "$JSON_CONTENT" \
+            | sed 's/.*"recentRoots":\[//;s/\].*//' \
+            | tr ',' '\n' \
+            | sed 's/^"//;s/"$//' \
+            | sed 's/^ *//;s/ *$//')
+    fi
+
+    if [ -z "$PATHS_LIST" ]; then
+        echo "   - Не удалось извлечь пути из recentworkspace.json"
+        echo "Не удалось разобрать JSON" > "$WORKSPACE_DIR/parse_error.txt"
+    else
+        # Функция декодирования URI
+        decode_uri() {
+            local uri="$1"
+            # Убираем file:///
+            local path="${uri#file:///}"
+            # Для Linux пути: file:///home/... → /home/...
+            # Проверяем, начинается ли с /
+            if [[ "$path" != /* ]]; then
+                path="/$path"
+            fi
+            # Декодируем URL-кодированные символы
+            if command -v python3 &>/dev/null; then
+                path=$(python3 -c "import urllib.parse; print(urllib.parse.unquote('$path'))" 2>/dev/null)
+            else
+                # Ручное декодирование частых случаев
+                path=$(echo "$path" | sed 's/%20/ /g; s/%3A/:/g; s/%23/#/g; s/%25/%/g; s/%2F/\//g')
+            fi
+            echo "$path"
+        }
+
+        # Обрабатываем каждый путь
+        while IFS= read -r RAW_PATH; do
+            [ -z "$RAW_PATH" ] && continue
+
+            WIN_PATH=$(decode_uri "$RAW_PATH")
+            echo "   - Обработка: $WIN_PATH"
+
+            if [ -d "$WIN_PATH" ]; then
+                # ===== ЭТО ПАПКА (проект) =====
+                PROJECT_NAME=$(basename "$WIN_PATH")
+                OUT_FILE="$WORKSPACE_DIR/${PROJECT_NAME}.txt"
+                echo "     [ПАПКА] Список файлов проекта -> $OUT_FILE"
+
+                {
+                    echo "========================================================"
+                    echo "PROJECT: $WIN_PATH"
+                    echo "Дата сбора: $FULL_DATETIME"
+                    echo "========================================================"
+                    echo ""
+                } > "$OUT_FILE"
+
+                # Рекурсивный список всех файлов
+                find "$WIN_PATH" -type f 2>/dev/null >> "$OUT_FILE"
+
+            elif [ -f "$WIN_PATH" ]; then
+                # ===== ЭТО ФАЙЛ =====
+                FILE_NAME=$(basename "$WIN_PATH" | sed 's/\.[^.]*$//')
+                OUT_FILE="$WORKSPACE_DIR/${FILE_NAME}.txt"
+                echo "     [ФАЙЛ] Содержимое -> $OUT_FILE"
+
+                {
+                    echo "========================================================"
+                    echo "SOURCE: $WIN_PATH"
+                    echo "Дата сбора: $FULL_DATETIME"
+                    echo "========================================================"
+                    echo ""
+                } > "$OUT_FILE"
+
+                cat "$WIN_PATH" >> "$OUT_FILE" 2>/dev/null
+
+            else
+                echo "     [НЕ НАЙДЕНО] $WIN_PATH"
+            fi
+
+        done <<< "$PATHS_LIST"
+    fi
+
+    echo "   - Обработка рабочих пространств завершена"
+fi
+
+# ====================================================================
+#  [7/7] Создание сводного отчёта
+# ====================================================================
+echo "[7/7] Создание сводного отчета..."
+
+SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
+
+{
+    echo "===================================================="
+    echo "              СВОДНЫЙ ОТЧЁТ О СИСТЕМЕ"
+    echo "===================================================="
+    echo ""
+    echo "Дата сбора: $FULL_DATETIME"
+    echo "Компьютер: $COMPUTER_NAME"
+    echo ""
+    echo "===================================================="
+    echo "1. АППАРАТНАЯ КОНФИГУРАЦИЯ И ОС"
+    echo "===================================================="
+    echo "Файл: ${COMPUTER_NAME}_diag.txt"
+
+    if [ -f "$DIAG_FILE" ]; then
+        FILE_SIZE=$(stat --format='%s' "$DIAG_FILE" 2>/dev/null || stat -f '%z' "$DIAG_FILE" 2>/dev/null)
+        echo "Размер: ${FILE_SIZE} байт"
+    else
+        echo "Файл не создан"
+    fi
+
+    echo ""
+    echo "===================================================="
+    echo "2. КОМПОНЕНТЫ 1С"
+    echo "===================================================="
+
+    if [ -f "$COMPONENTS_FILE" ]; then
+        cat "$COMPONENTS_FILE"
+    else
+        echo "Файл не создан"
+    fi
+
+    echo ""
+    echo "===================================================="
+    echo "3. ПРОЦЕССЫ"
+    echo "===================================================="
+
+    if [ -f "$PROCESSES_FILE" ]; then
+        FILE_SIZE=$(stat --format='%s' "$PROCESSES_FILE" 2>/dev/null || stat -f '%z' "$PROCESSES_FILE" 2>/dev/null)
+        echo "Файл с процессами: processes.txt"
+        echo "Размер файла: ${FILE_SIZE} байт"
+        echo ""
+        echo "Первые 15 строк файла (для ознакомления):"
+        echo "----------------------------------------"
+        head -15 "$PROCESSES_FILE"
+    else
+        echo "Файл с процессами не создан"
+    fi
+
+    echo ""
+    echo "===================================================="
+    echo "4. ЛОГИ"
+    echo "===================================================="
+
+    if [ -d "$LOGS_PATH" ]; then
+        echo "Папка с логами: $LOGS_PATH"
+        echo ""
+        echo "Содержимое папки logs:"
+
+        for d in "$LOGS_PATH"/*/; do
+            [ -d "$d" ] || continue
+            DIR_NAME=$(basename "$d")
+            echo "[ПАПКА] $DIR_NAME"
+            if [ -f "$d/copied_from.txt" ]; then
+                echo "  Информация:"
+                while IFS= read -r line; do
+                    echo "    $line"
+                done < "$d/copied_from.txt"
+            fi
+            echo ""
+        done
+
+        # Файлы в корне logs
+        find "$LOGS_PATH" -maxdepth 1 -type f -exec basename {} \; 2>/dev/null
+    else
+        echo "Папка с логами не создана"
+    fi
+
+    echo ""
+    echo "===================================================="
+    echo "5. DEPLOYMENT ERRORS"
+    echo "===================================================="
+
+    if [ -d "$DEPLOYMENT_ERRORS_PATH" ]; then
+        echo "Папка с ошибками развертывания: $DEPLOYMENT_ERRORS_PATH"
+        echo ""
+        echo "Содержимое папки deployment_errors:"
+
+        for d in "$DEPLOYMENT_ERRORS_PATH"/*/; do
+            [ -d "$d" ] || continue
+            echo "[ПАПКА] $(basename "$d")"
+            echo ""
+        done
+
+        # Информационные .txt файлы
+        find "$DEPLOYMENT_ERRORS_PATH" -maxdepth 1 -name '*.txt' -exec basename {} \; 2>/dev/null
+    else
+        echo "Папка с ошибками развертывания не создана"
+    fi
+
+    echo ""
+    echo "===================================================="
+    echo "6. РАБОЧИЕ ПРОСТРАНСТВА (WORKSPACES)"
+    echo "===================================================="
+
+    if [ -d "$WORKSPACE_DIR" ]; then
+        echo "Папка: $WORKSPACE_DIR"
+        echo ""
+        echo "Найденные файлы:"
+        ls -1 "$WORKSPACE_DIR" 2>/dev/null
+    else
+        echo "Папка workspaces не создана"
+    fi
+
+    echo ""
+    echo "===================================================="
+    echo "Конец отчёта"
+    echo "===================================================="
+
+} > "$SUMMARY_FILE"
+
+# ---- Список компьютеров в папке с датой ----
+COMPUTERS_LIST_FILE="$BASE_PATH/computers_list.txt"
+
+if [ ! -f "$COMPUTERS_LIST_FILE" ]; then
+    {
+        echo "===================================================="
+        echo "       СПИСОК КОМПЬЮТЕРОВ ЗА $DATE_FOLDER"
+        echo "===================================================="
+        echo "Дата сбора | Время | Имя компьютера"
+        echo "===================================================="
+    } > "$COMPUTERS_LIST_FILE"
+fi
+
+echo "$CURRENT_DATE | $CURRENT_TIME | $COMPUTER_NAME" >> "$COMPUTERS_LIST_FILE"
+
+# ====================================================================
+#  ИТОГОВЫЙ ВЫВОД
+# ====================================================================
+echo ""
+echo "====================================================="
+echo "            СБОР ИНФОРМАЦИИ ЗАВЕРШЁН"
+echo "====================================================="
+echo ""
+echo "Данные сохранены в:"
+echo "$COMPUTER_PATH"
+echo ""
+echo "Структура папок:"
+echo "$DATE_FOLDER/"
+echo "  +-- computers_list.txt"
+echo "  +-- $COMPUTER_NAME/"
+echo "      +-- ${COMPUTER_NAME}_diag.txt"
+echo "      +-- installed_versions.txt"
+echo "      +-- processes.txt"
+echo "      +-- processes.csv"
+echo "      +-- summary_report.txt"
+echo "      +-- logs/"
+echo "      |   +-- [папка_с_самыми_свежими_логами]/"
+echo "      +-- deployment_errors/"
+echo "      |   +-- 1ce-installer-crash/ (если найдена)"
+echo "      |   +-- 1ce-installer-20*/ (самая свежая)"
+echo "      +-- workspaces/"
+echo "          +-- [ИмяПроекта].txt (список файлов для папок)"
+echo "          +-- [ИмяФайла].txt (содержимое для файлов)"
+echo ""
+echo "Сводный отчёт: $SUMMARY_FILE"
+echo "Список компьютеров за $DATE_FOLDER: $COMPUTERS_LIST_FILE"
