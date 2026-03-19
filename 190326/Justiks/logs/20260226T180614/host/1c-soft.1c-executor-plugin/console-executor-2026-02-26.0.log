@@ -1,4 +1,0 @@
-[INFO ] 2026-02-26 22:06:16.736 [main] c.e.g.e.c.AgentServerExecutor - Startup server, version 9.1.1-1
-[INFO ] 2026-02-26 22:06:16.781 [main] c.e.g.e.a.s.i.c.ExecutorOwnerProcessMonitor - Starting owner process monitor for PID: 308490
-[INFO ] 2026-02-26 22:06:16.799 [main] c.e.g.e.c.AgentServerExecutor - "1С:Предприятие.Элемент Скрипт" в агентском режиме запущен на "127.0.0.1:9596"
-[INFO ] 2026-02-26 22:06:16.952 [pool-1-thread-2] c.e.g.e.a.s.i.c.ExecutorAgentServer - Client connected on program port: 50880
