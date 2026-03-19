@@ -494,6 +494,18 @@ if not exist "%COMPUTERS_LIST_FILE%" (
     echo ==================================================== >> "%COMPUTERS_LIST_FILE%"
 )
 
+:: java report
+set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
+(
+
+    echo java --version report
+    echo
+    echo
+    java --version
+
+) >> "%JAVA_REPORT%"
+
+
 :: Добавляем запись о текущем компьютере
 echo %DATE% ^| %TIME% ^| %COMPUTER_NAME% >> "%COMPUTERS_LIST_FILE%"
 
