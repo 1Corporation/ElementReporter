@@ -497,10 +497,9 @@ if not exist "%COMPUTERS_LIST_FILE%" (
 :: java report
 set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
 (
-
+    echo =================================
     echo java --version report
-    echo
-    echo
+    echo ===============================
     java --version
 
 ) >> "%JAVA_REPORT%"
