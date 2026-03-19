@@ -1,0 +1,9 @@
+2026-02-26 22:06:15,194 INFO current native version: 0.0.1.1
+2026-02-26 22:06:15,194 INFO got request to launch executor agent
+2026-02-26 22:06:15,194 INFO looking for java
+2026-02-26 22:06:15,194 INFO searching java in inventiory
+2026-02-26 22:06:15,260 INFO java was found in inventory: /opt/1C/1CE/components/axiom-jdk-full-17.0.16+12-x86_64
+2026-02-26 22:06:15,261 INFO running executor in agent mode
+2026-02-26 22:06:16,799 INFO "1С:Предприятие.Элемент Скрипт" в агентском режиме запущен на "127.0.0.1:9596"
+
+2026-02-26 22:06:16,799 INFO Executor started successfully

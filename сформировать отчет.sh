@@ -3,6 +3,7 @@
 
 # ====================================================================
 #  Скрипт сбора информации о системе (Linux-версия)
+#  Обновлён: добавлен сбор информации о Java
 # ====================================================================
 
 # Настройка кодировки
@@ -44,9 +45,9 @@ mkdir -p "$LOGS_PATH"
 mkdir -p "$DEPLOYMENT_ERRORS_PATH"
 
 # ====================================================================
-#  [1/7] Аппаратная конфигурация и ОС (замена dxdiag)
+#  [1/8] Аппаратная конфигурация и ОС (замена dxdiag)
 # ====================================================================
-echo "[1/7] Сбор информации об аппаратной конфигурации и ОС..."
+echo "[1/8] Сбор информации об аппаратной конфигурации и ОС..."
 
 DIAG_FILE="$COMPUTER_PATH/${COMPUTER_NAME}_diag.txt"
 {
@@ -137,9 +138,9 @@ DIAG_FILE="$COMPUTER_PATH/${COMPUTER_NAME}_diag.txt"
 echo "   - Диагностика сохранена в ${COMPUTER_NAME}_diag.txt"
 
 # ====================================================================
-#  [2/7] Компоненты 1С
+#  [2/8] Компоненты 1С
 # ====================================================================
-echo "[2/7] Сбор информации о компонентах 1С..."
+echo "[2/8] Сбор информации о компонентах 1С..."
 
 COMPONENTS_FILE="$COMPUTER_PATH/installed_versions.txt"
 
@@ -196,9 +197,9 @@ COMPONENTS_DIRS=(
 echo "   - Список компонентов сохранен в installed_versions.txt"
 
 # ====================================================================
-#  [3/7] Копирование логов 1С
+#  [3/8] Копирование логов 1С
 # ====================================================================
-echo "[3/7] Копирование логов 1С..."
+echo "[3/8] Копирование логов 1С..."
 
 USER_HOME="$HOME"
 LOGS_SOURCE="$USER_HOME/1c-enterprise-element/.storage/logs"
@@ -248,9 +249,9 @@ else
 fi
 
 # ====================================================================
-#  [4/7] Копирование deployment_errors (папки 1ce-installer из /tmp)
+#  [4/8] Копирование deployment_errors (папки 1ce-installer из /tmp)
 # ====================================================================
-echo "[4/7] Копирование deployment_errors (папки 1ce-installer из /tmp)..."
+echo "[4/8] Копирование deployment_errors (папки 1ce-installer из /tmp)..."
 
 TEMP_PATH="${TMPDIR:-/tmp}"
 
@@ -300,9 +301,9 @@ else
 fi
 
 # ====================================================================
-#  [5/7] Сбор информации о запущенных процессах
+#  [5/8] Сбор информации о запущенных процессах
 # ====================================================================
-echo "[5/7] Сбор информации о запущенных процессах..."
+echo "[5/8] Сбор информации о запущенных процессах..."
 
 PROCESSES_FILE="$COMPUTER_PATH/processes.txt"
 
@@ -355,9 +356,9 @@ PROCESSES_CSV="$COMPUTER_PATH/processes.csv"
 echo "   - Информация о процессах сохранена в processes.txt и processes.csv"
 
 # ====================================================================
-#  [6/7] Обработка недавних рабочих пространств (recentworkspace)
+#  [6/8] Обработка недавних рабочих пространств (recentworkspace)
 # ====================================================================
-echo "[6/7] Обработка недавних рабочих пространств (recentworkspace)..."
+echo "[6/8] Обработка недавних рабочих пространств (recentworkspace)..."
 
 INPUT_FILE="$HOME/1c-enterprise-element/.storage/recentworkspace.json"
 WORKSPACE_DIR="$COMPUTER_PATH/workspaces"
@@ -370,24 +371,20 @@ if [ ! -f "$INPUT_FILE" ]; then
     echo "Файл recentworkspace.json не найден" > "$WORKSPACE_DIR/not_found.txt"
 else
     # ---- Разбор JSON ----
-    # Читаем файл целиком
     JSON_CONTENT=$(cat "$INPUT_FILE" 2>/dev/null)
 
     # Пробуем использовать jq, если доступен
     if command -v jq &>/dev/null; then
-        # Извлекаем массив recentRoots через jq
         PATHS_LIST=$(jq -r '.recentRoots[]' "$INPUT_FILE" 2>/dev/null)
     elif command -v python3 &>/dev/null; then
-        # Резервный вариант через python3
         PATHS_LIST=$(python3 -c "
-import json, sys, urllib.parse
+import json, sys
 with open('$INPUT_FILE', 'r') as f:
     data = json.load(f)
 for uri in data.get('recentRoots', []):
     print(uri)
 " 2>/dev/null)
     else
-        # Ручной разбор без внешних инструментов
         PATHS_LIST=$(echo "$JSON_CONTENT" \
             | sed 's/.*"recentRoots":\[//;s/\].*//' \
             | tr ',' '\n' \
@@ -399,27 +396,20 @@ for uri in data.get('recentRoots', []):
         echo "   - Не удалось извлечь пути из recentworkspace.json"
         echo "Не удалось разобрать JSON" > "$WORKSPACE_DIR/parse_error.txt"
     else
-        # Функция декодирования URI
         decode_uri() {
             local uri="$1"
-            # Убираем file:///
             local path="${uri#file:///}"
-            # Для Linux пути: file:///home/... → /home/...
-            # Проверяем, начинается ли с /
             if [[ "$path" != /* ]]; then
                 path="/$path"
             fi
-            # Декодируем URL-кодированные символы
             if command -v python3 &>/dev/null; then
                 path=$(python3 -c "import urllib.parse; print(urllib.parse.unquote('$path'))" 2>/dev/null)
             else
-                # Ручное декодирование частых случаев
                 path=$(echo "$path" | sed 's/%20/ /g; s/%3A/:/g; s/%23/#/g; s/%25/%/g; s/%2F/\//g')
             fi
             echo "$path"
         }
 
-        # Обрабатываем каждый путь
         while IFS= read -r RAW_PATH; do
             [ -z "$RAW_PATH" ] && continue
 
@@ -427,7 +417,6 @@ for uri in data.get('recentRoots', []):
             echo "   - Обработка: $WIN_PATH"
 
             if [ -d "$WIN_PATH" ]; then
-                # ===== ЭТО ПАПКА (проект) =====
                 PROJECT_NAME=$(basename "$WIN_PATH")
                 OUT_FILE="$WORKSPACE_DIR/${PROJECT_NAME}.txt"
                 echo "     [ПАПКА] Список файлов проекта -> $OUT_FILE"
@@ -440,11 +429,9 @@ for uri in data.get('recentRoots', []):
                     echo ""
                 } > "$OUT_FILE"
 
-                # Рекурсивный список всех файлов
                 find "$WIN_PATH" -type f 2>/dev/null >> "$OUT_FILE"
 
             elif [ -f "$WIN_PATH" ]; then
-                # ===== ЭТО ФАЙЛ =====
                 FILE_NAME=$(basename "$WIN_PATH" | sed 's/\.[^.]*$//')
                 OUT_FILE="$WORKSPACE_DIR/${FILE_NAME}.txt"
                 echo "     [ФАЙЛ] Содержимое -> $OUT_FILE"
@@ -470,9 +457,38 @@ for uri in data.get('recentRoots', []):
 fi
 
 # ====================================================================
-#  [7/7] Создание сводного отчёта
+#  [7/8] Сбор информации о Java
 # ====================================================================
-echo "[7/7] Создание сводного отчета..."
+echo "[7/8] Сбор информации о Java..."
+
+JAVA_REPORT="$COMPUTER_PATH/java_report.txt"
+{
+    echo "========================================"
+    echo "      ИНФОРМАЦИЯ О JAVA"
+    echo "========================================"
+    echo "Компьютер: $COMPUTER_NAME"
+    echo "Дата сбора: $FULL_DATETIME"
+    echo "========================================"
+    echo ""
+
+    if command -v java &>/dev/null; then
+        java -version 2>&1
+    else
+        echo "Java не найдена в системе"
+    fi
+
+    echo ""
+    echo "--- Переменные окружения, связанные с Java ---"
+    env | grep -i java 2>/dev/null || echo "(нет переменных JAVA_*)"
+
+} > "$JAVA_REPORT"
+
+echo "   - Информация о Java сохранена в java_report.txt"
+
+# ====================================================================
+#  [8/8] Создание сводного отчёта
+# ====================================================================
+echo "[8/8] Создание сводного отчета..."
 
 SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
 
@@ -547,7 +563,6 @@ SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
             echo ""
         done
 
-        # Файлы в корне logs
         find "$LOGS_PATH" -maxdepth 1 -type f -exec basename {} \; 2>/dev/null
     else
         echo "Папка с логами не создана"
@@ -569,7 +584,6 @@ SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
             echo ""
         done
 
-        # Информационные .txt файлы
         find "$DEPLOYMENT_ERRORS_PATH" -maxdepth 1 -name '*.txt' -exec basename {} \; 2>/dev/null
     else
         echo "Папка с ошибками развертывания не создана"
@@ -587,6 +601,20 @@ SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
         ls -1 "$WORKSPACE_DIR" 2>/dev/null
     else
         echo "Папка workspaces не создана"
+    fi
+
+    echo ""
+    echo "===================================================="
+    echo "7. JAVA"
+    echo "===================================================="
+
+    if [ -f "$JAVA_REPORT" ]; then
+        echo "Файл: java_report.txt"
+        echo "Содержимое:"
+        echo "----------------------------------------"
+        cat "$JAVA_REPORT"
+    else
+        echo "Файл java_report.txt не создан"
     fi
 
     echo ""
@@ -630,6 +658,7 @@ echo "      +-- ${COMPUTER_NAME}_diag.txt"
 echo "      +-- installed_versions.txt"
 echo "      +-- processes.txt"
 echo "      +-- processes.csv"
+echo "      +-- java_report.txt"
 echo "      +-- summary_report.txt"
 echo "      +-- logs/"
 echo "      |   +-- [папка_с_самыми_свежими_логами]/"
