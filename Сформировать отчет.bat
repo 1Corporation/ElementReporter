@@ -1,4 +1,17 @@
 @echo off
+:: [ДОБАВЛЕНО] Проверка прав администратора
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo.
+    echo =====================================================
+    echo [ВНИМАНИЕ] Скрипт запущен БЕЗ прав Администратора!
+    echo "Некоторые данные (dxdiag, systeminfo, логи) могут быть недоступны."
+    echo Рекомендуется перезапустить скрипт от имени Администратора.
+    echo =====================================================
+    echo.
+    timeout /t 5 >nul
+)
+
 chcp 866 >nul
 setlocal enabledelayedexpansion
 
@@ -33,6 +46,9 @@ set "COMPUTER_PATH=%BASE_PATH%\%COMPUTER_NAME%"
 set "LOGS_PATH=%COMPUTER_PATH%\logs"
 set "DEPLOYMENT_ERRORS_PATH=%COMPUTER_PATH%\deployment_errors"
 
+:: [ДОБАВЛЕНО] Настройка файла журнала выполнения (технический лог скрипта)
+set "EXEC_LOG=%COMPUTER_PATH%\script_execution.log"
+
 echo =====================================================
 echo       СБОР ИНФОРМАЦИИ О СИСТЕМЕ
 echo =====================================================
@@ -57,18 +73,36 @@ echo Создание структуры папок...
 if not exist "%BASE_PATH%" mkdir "%BASE_PATH%"
 if not exist "%COMPUTER_PATH%" mkdir "%COMPUTER_PATH%"
 
+:: [ДОБАВЛЕНО] Инициализация лога после создания папки
+call :LogMsg "INFO" "Запуск скрипта сбора информации. Режим: %COLLECTION_MODE%"
+call :LogMsg "INFO" "Целевая папка создана: %COMPUTER_PATH%"
+
 :: Папки логов создаем только в FULL режиме, чтобы не мусорить пустыми папками в LIGHT
 if /i "%COLLECTION_MODE%"=="full" (
     if not exist "%LOGS_PATH%" mkdir "%LOGS_PATH%"
     if not exist "%DEPLOYMENT_ERRORS_PATH%" mkdir "%DEPLOYMENT_ERRORS_PATH%"
+    :: [ДОБАВЛЕНО] Логирование создания подпапок
+    call :LogMsg "INFO" "Созданы папки для логов и ошибок развертывания."
 )
 
 echo [1/8] Сбор информации об аппаратной конфигурации и ОС...
+:: [ДОБАВЛЕНО] Лог начала шага
+call :LogMsg "INFO" "[ШАГ 1] Запуск dxdiag..."
+
 :: Запускаем dxdiag и сохраняем результат
 start /wait dxdiag /whql:off /t "%COMPUTER_PATH%\%COMPUTER_NAME%_diag.txt"
+
+:: [ДОБАВЛЕНО] Проверка создания файла диагностики
+if exist "%COMPUTER_PATH%\%COMPUTER_NAME%_diag.txt" (
+    call :LogMsg "INFO" "DxDiag успешно завершен."
+) else (
+    call :LogMsg "ERROR" "Файл диагностики не создан! Возможна ошибка прав или dxdiag."
+)
+
 echo    - Диагностика сохранена в %COMPUTER_NAME%_diag.txt
 
 echo [2/8] Сбор информации о компонентах 1С...
+call :LogMsg "INFO" "[ШАГ 2] Поиск установленных версий 1С..."
 set "COMPONENTS_FILE=%COMPUTER_PATH%\installed_versions.txt"
 (
     echo ========================================
@@ -83,8 +117,12 @@ set "COMPONENTS_FILE=%COMPUTER_PATH%\installed_versions.txt"
 :: Проверяем существование папки с компонентами
 if exist "C:\Program Files\1C\1CE\components" (
     dir "C:\Program Files\1C\1CE\components" /b /ad >> "%COMPONENTS_FILE%" 2>nul
+    :: [ДОБАВЛЕНО] Лог успеха
+    call :LogMsg "INFO" "Папка компонентов найдена и просканирована."
 ) else (
     echo Папка не найдена: C:\Program Files\1C\1CE\components >> "%COMPONENTS_FILE%"
+    :: [ДОБАВЛЕНО] Лог ошибки
+    call :LogMsg "WARNING" "Папка компонентов 1С не найдена по стандартному пути."
 )
 echo    - Список компонентов сохранен в installed_versions.txt
 
@@ -96,11 +134,13 @@ if /i not "%COLLECTION_MODE%"=="full" (
     echo -----------------------------------------------------
     echo Режим "%COLLECTION_MODE%": Шаги 3, 4, 5, 6 пропускаются.
     echo -----------------------------------------------------
+    call :LogMsg "INFO" "Пропуск шагов 3-6 согласно режиму LIGHT."
     goto :Step7
 )
 :: =====================================================
 
 echo [3/8] Копирование логов 1С...
+call :LogMsg "INFO" "[ШАГ 3] Начат поиск логов 1С..."
 :: Формируем путь к папке с логами
 set "USER_PATH=%HOMEDRIVE%%HOMEPATH%"
 set "LOGS_SOURCE=%USER_PATH%\1c-enterprise-element\.storage\logs"
@@ -154,6 +194,7 @@ if exist "%LOGS_SOURCE%" (
         echo    - Найдена самая свежая папка: !LATEST_FOLDER_NAME!
         echo    - Дата последнего изменения: !LATEST_DATE!
         echo    - Копирование папки целиком...
+        call :LogMsg "INFO" "Обнаружена свежая папка логов: !LATEST_FOLDER_NAME!. Копируем..."
 
         :: Создаем подпапку с именем исходной папки в директории logs
         set "TARGET_FOLDER=%LOGS_PATH%\!LATEST_FOLDER_NAME!"
@@ -166,27 +207,33 @@ if exist "%LOGS_SOURCE%" (
         if errorlevel 1 (
             echo    - ОШИБКА: Не удалось скопировать папку с логами
             echo Ошибка копирования из !LATEST_FOLDER! > "%LOGS_PATH%\copy_error.txt"
+            call :LogMsg "ERROR" "Ошибка xcopy при копировании логов из !LATEST_FOLDER!."
         ) else (
             echo    - Папка !LATEST_FOLDER_NAME! успешно скопирована в %LOGS_PATH%
             echo Источник: !LATEST_FOLDER! > "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
             echo Дата копирования: %DATE% %TIME% >> "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
             echo Дата последнего изменения исходной папки: !LATEST_DATE! >> "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
+            call :LogMsg "INFO" "Логи успешно скопированы."
         )
     ) else (
         echo    - Не найдены папки с логами в %LOGS_SOURCE%
         echo Папки с логами не найдены > "%LOGS_PATH%\no_logs_found.txt"
+        call :LogMsg "WARNING" "Папка logs пуста или не содержит подпапок."
     )
 ) else (
     echo    - Папка с логами не существует: %LOGS_SOURCE%
     echo Папка %LOGS_SOURCE% не существует > "%LOGS_PATH%\source_not_exists.txt"
+    call :LogMsg "WARNING" "Исходная папка логов 1C не найдена (%LOGS_SOURCE%)."
 )
 
 echo [4/8] Копирование deployment_errors (папки 1ce-installer из TEMP)...
+call :LogMsg "INFO" "[ШАГ 4] Поиск ошибок развертывания в TEMP..."
 set "TEMP_PATH=%TEMP%"
 
 :: Копирование папки 1ce-installer-crash (всегда копируем, если существует)
 if exist "%TEMP_PATH%\1ce-installer-crash" (
     echo    - Найдена папка 1ce-installer-crash
+    call :LogMsg "INFO" "Обнаружен краш-дамп инсталлятора."
     set "TARGET_CRASH=%DEPLOYMENT_ERRORS_PATH%\1ce-installer-crash"
     if not exist "!TARGET_CRASH!" mkdir "!TARGET_CRASH!"
     xcopy "%TEMP_PATH%\1ce-installer-crash" "!TARGET_CRASH!\" /e /i /y /q >nul
@@ -248,8 +295,10 @@ if defined LATEST_INSTALLER_FOLDER (
 
     if errorlevel 1 (
         echo    - ОШИБКА: Не удалось скопировать папку !LATEST_INSTALLER_NAME!
+        call :LogMsg "ERROR" "Ошибка копирования папки инсталлятора."
     ) else (
         echo    - Папка !LATEST_INSTALLER_NAME! успешно скопирована
+        call :LogMsg "INFO" "Папка инсталлятора скопирована."
     )
 ) else (
     echo    - Папки 1ce-installer-20* не найдены в %TEMP_PATH%
@@ -257,6 +306,7 @@ if defined LATEST_INSTALLER_FOLDER (
 )
 
 echo [5/8] Сбор информации о запущенных процессах...
+call :LogMsg "INFO" "[ШАГ 5] Сбор списка процессов..."
 set "PROCESSES_FILE=%COMPUTER_PATH%\processes.txt"
 
 :: Получаем список процессов в CSV формате (удобно для импорта в Excel)
@@ -274,6 +324,8 @@ set "PROCESSES_FILE=%COMPUTER_PATH%\processes.txt"
 
 :: Добавляем данные процессов в CSV формате
 tasklist /fo csv /nh >> "%PROCESSES_FILE%" 2>nul
+:: [ДОБАВЛЕНО] Логирование ошибки tasklist (например, если нет прав)
+if %errorlevel% neq 0 call :LogMsg "ERROR" "Не удалось выполнить tasklist."
 
 :: Добавляем информацию о системе
 (
@@ -295,6 +347,7 @@ tasklist /fo csv 2>nul | find /c /v "" >> "%PROCESSES_FILE%"
 echo    - Информация о процессах сохранена в processes.txt (CSV формат)
 
 echo [6/8] Копирование рабочих пространств (recentworkspace)...
+call :LogMsg "INFO" "[ШАГ 6] Обработка рабочих пространств..."
 
 REM === НАСТРОЙКИ ===
 set "INPUT_FILE=%USERPROFILE%\1c-enterprise-element\.storage\recentworkspace.json"
@@ -308,6 +361,7 @@ echo    - Поиск конфига: "%INPUT_FILE%"
 if not exist "%INPUT_FILE%" (
     echo    - [ОШИБКА] Файл recentworkspace.json не найден!
     echo Файл recentworkspace.json не найден > "%WORKSPACE_DIR%\not_found.txt"
+    call :LogMsg "WARNING" "Конфигурационный файл workspace не найден."
     goto :SkipWorkspaces
 )
 
@@ -349,6 +403,7 @@ for /f "tokens=1* delims=," %%a in ("!JSON_CONTENT!") do (
         xcopy "!WIN_PATH!" "!TARGET_DIR!\" /e /i /y /q >nul
         if errorlevel 1 (
             echo      - ОШИБКА при копировании папки
+            call :LogMsg "ERROR" "Ошибка копирования папки workspace: !WIN_PATH!"
         ) else (
             echo      - Папка скопирована успешно
         )
@@ -388,12 +443,14 @@ for /f "tokens=1* delims=," %%a in ("!JSON_CONTENT!") do (
         copy "!WIN_PATH!" "!TARGET_FILE!" /y >nul
         if errorlevel 1 (
             echo      - ОШИБКА при копировании файла
+            call :LogMsg "ERROR" "Ошибка копирования файла workspace: !WIN_PATH!"
         ) else (
             echo      - Файл скопирован успешно
         )
 
     ) else (
         echo      [НЕ НАЙДЕНО] !WIN_PATH!
+        call :LogMsg "WARNING" "Путь workspace не найден на диске: !WIN_PATH!"
     )
 
     if defined JSON_CONTENT goto ParseLoopWS
@@ -405,6 +462,7 @@ echo    - Копирование рабочих пространств завершено
 
 :Step7
 echo [7/8] Сбор информации о Java...
+call :LogMsg "INFO" "[ШАГ 7] Проверка версии Java..."
 set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
 (
     echo ========================================
@@ -423,6 +481,7 @@ set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
 echo    - Информация о Java сохранена в java_report.txt
 
 echo [8/8] Создание сводного отчета...
+call :LogMsg "INFO" "[ШАГ 8] Генерация сводного отчета..."
 set "SUMMARY_FILE=%COMPUTER_PATH%\summary_report.txt"
 (
     echo ====================================================
@@ -599,6 +658,8 @@ if not exist "%COMPUTERS_LIST_FILE%" (
 :: Добавляем запись о текущем компьютере
 echo %DATE% ^| %TIME% ^| %COMPUTER_NAME% ^| %COLLECTION_MODE% >> "%COMPUTERS_LIST_FILE%"
 
+call :LogMsg "INFO" "Сбор данных завершен. Отчет обновлен."
+
 echo.
 echo =====================================================
 echo            СБОР ИНФОРМАЦИИ ЗАВЕРШЕН
@@ -635,3 +696,17 @@ echo.
 echo Сводный отчет: %SUMMARY_FILE%
 echo.
 echo Список компьютеров за %DATE_FOLDER%: %COMPUTERS_LIST_FILE%
+
+:: [ДОБАВЛЕНО] Выход из скрипта, чтобы не попасть в функцию логгера
+exit /b
+
+:: =====================================================
+:: [ДОБАВЛЕНО] ФУНКЦИЯ ЛОГИРОВАНИЯ
+:: =====================================================
+:LogMsg
+:: %1 - Тип (INFO, ERROR, WARNING)
+:: %2 - Сообщение
+if defined EXEC_LOG (
+    echo [%DATE% %TIME%] [%~1] %~2 >> "%EXEC_LOG%"
+)
+exit /b
