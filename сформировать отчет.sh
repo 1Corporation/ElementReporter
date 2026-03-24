@@ -6,9 +6,31 @@
 #  Адаптирован под режимы Full/Light
 # ====================================================================
 
+# [ДОБАВЛЕНО] Проверка прав root
+if [ "$EUID" -ne 0 ]; then
+    echo ""
+    echo "====================================================="
+    echo "[ВНИМАНИЕ] Скрипт запущен БЕЗ прав root!"
+    echo "Некоторые данные (dmidecode, lspci, системные логи) могут быть недоступны."
+    echo "Рекомендуется перезапустить скрипт через sudo."
+    echo "====================================================="
+    echo ""
+    sleep 3
+fi
+
 # Настройка кодировки
 export LANG=ru_RU.UTF-8 2>/dev/null
 export LC_ALL=ru_RU.UTF-8 2>/dev/null
+
+# [ДОБАВЛЕНО] Функция логирования (должна быть определена до использования)
+log_msg() {
+    local level="$1"
+    local msg="$2"
+    # Пишем только если переменная лога задана и файл доступен для записи
+    if [ -n "$EXEC_LOG" ]; then
+        echo "[$(date '+%Y-%m-%d %H:%M:%S')] [$level] $msg" >> "$EXEC_LOG"
+    fi
+}
 
 # =====================================================
 # НАСТРОЙКИ СКРИПТА
@@ -37,6 +59,9 @@ COMPUTER_PATH="$BASE_PATH/$COMPUTER_NAME"
 LOGS_PATH="$COMPUTER_PATH/logs"
 DEPLOYMENT_ERRORS_PATH="$COMPUTER_PATH/deployment_errors"
 
+# [ДОБАВЛЕНО] Определение файла технического журнала
+EXEC_LOG="$COMPUTER_PATH/script_execution.log"
+
 echo "====================================================="
 echo "       СБОР ИНФОРМАЦИИ О СИСТЕМЕ (Linux)"
 echo "====================================================="
@@ -60,16 +85,24 @@ echo "Создание структуры папок..."
 mkdir -p "$BASE_PATH"
 mkdir -p "$COMPUTER_PATH"
 
+# [ДОБАВЛЕНО] Инициализация лога
+log_msg "INFO" "Запуск скрипта сбора информации (Linux). Режим: $COLLECTION_MODE"
+log_msg "INFO" "Целевая папка создана: $COMPUTER_PATH"
+
 # Папки для логов создаем только в FULL режиме
 if [ "$COLLECTION_MODE" == "full" ]; then
     mkdir -p "$LOGS_PATH"
     mkdir -p "$DEPLOYMENT_ERRORS_PATH"
+    # [ДОБАВЛЕНО] Лог создания папок
+    log_msg "INFO" "Созданы папки для логов и ошибок."
 fi
 
 # ====================================================================
 #  [1/8] Аппаратная конфигурация и ОС (замена dxdiag)
 # ====================================================================
 echo "[1/8] Сбор информации об аппаратной конфигурации и ОС..."
+# [ДОБАВЛЕНО] Лог шага 1
+log_msg "INFO" "[ШАГ 1] Сбор диагностики системы..."
 
 DIAG_FILE="$COMPUTER_PATH/${COMPUTER_NAME}_diag.txt"
 {
@@ -157,12 +190,21 @@ DIAG_FILE="$COMPUTER_PATH/${COMPUTER_NAME}_diag.txt"
 
 } > "$DIAG_FILE"
 
+# [ДОБАВЛЕНО] Проверка создания файла
+if [ -s "$DIAG_FILE" ]; then
+    log_msg "INFO" "Файл диагностики успешно создан."
+else
+    log_msg "ERROR" "Файл диагностики пуст или не создан."
+fi
+
 echo "   - Диагностика сохранена в ${COMPUTER_NAME}_diag.txt"
 
 # ====================================================================
 #  [2/8] Компоненты 1С
 # ====================================================================
 echo "[2/8] Сбор информации о компонентах 1С..."
+# [ДОБАВЛЕНО] Лог шага 2
+log_msg "INFO" "[ШАГ 2] Поиск компонентов 1С..."
 
 COMPONENTS_FILE="$COMPUTER_PATH/installed_versions.txt"
 
@@ -216,6 +258,9 @@ COMPONENTS_DIRS=(
 
 } > "$COMPONENTS_FILE"
 
+# [ДОБАВЛЕНО] Лог завершения шага 2
+log_msg "INFO" "Список компонентов сохранен."
+
 echo "   - Список компонентов сохранен в installed_versions.txt"
 
 # ====================================================================
@@ -226,11 +271,15 @@ if [ "$COLLECTION_MODE" != "full" ]; then
     echo "-----------------------------------------------------"
     echo "Режим \"$COLLECTION_MODE\": Шаги 3, 4, 5, 6 пропускаются."
     echo "-----------------------------------------------------"
+    # [ДОБАВЛЕНО] Лог пропуска
+    log_msg "INFO" "Пропуск шагов 3-6 (режим Light)."
 else
     # ====================================================================
     #  [3/8] Копирование логов 1С
     # ====================================================================
     echo "[3/8] Копирование логов 1С..."
+    # [ДОБАВЛЕНО] Лог шага 3
+    log_msg "INFO" "[ШАГ 3] Поиск логов 1С..."
 
     USER_HOME="$HOME"
     LOGS_SOURCE="$USER_HOME/1c-enterprise-element/.storage/logs"
@@ -255,6 +304,8 @@ else
             echo "   - Найдена самая свежая папка: $LATEST_FOLDER_NAME"
             echo "   - Дата последнего изменения: $LATEST_DATE"
             echo "   - Копирование папки целиком..."
+            # [ДОБАВЛЕНО] Лог находки
+            log_msg "INFO" "Найдена свежая папка логов: $LATEST_FOLDER_NAME. Копируем..."
 
             TARGET_FOLDER="$LOGS_PATH/$LATEST_FOLDER_NAME"
             mkdir -p "$TARGET_FOLDER"
@@ -266,29 +317,41 @@ else
                     echo "Дата копирования: $FULL_DATETIME"
                     echo "Дата последнего изменения исходной папки: $LATEST_DATE"
                 } > "$TARGET_FOLDER/copied_from.txt"
+                # [ДОБАВЛЕНО] Лог успеха
+                log_msg "INFO" "Логи успешно скопированы."
             else
                 echo "   - ОШИБКА: Не удалось скопировать папку с логами"
                 echo "Ошибка копирования из $LATEST_FOLDER" > "$LOGS_PATH/copy_error.txt"
+                # [ДОБАВЛЕНО] Лог ошибки
+                log_msg "ERROR" "Ошибка cp при копировании логов из $LATEST_FOLDER"
             fi
         else
             echo "   - Не найдены папки с логами в $LOGS_SOURCE"
             echo "Папки с логами не найдены" > "$LOGS_PATH/no_logs_found.txt"
+            # [ДОБАВЛЕНО] Лог предупреждение
+            log_msg "WARNING" "Папка logs пуста или не содержит подпапок."
         fi
     else
         echo "   - Папка с логами не существует: $LOGS_SOURCE"
         echo "Папка $LOGS_SOURCE не существует" > "$LOGS_PATH/source_not_exists.txt"
+        # [ДОБАВЛЕНО] Лог предупреждение
+        log_msg "WARNING" "Исходная папка логов не найдена ($LOGS_SOURCE)."
     fi
 
     # ====================================================================
     #  [4/8] Копирование deployment_errors (папки 1ce-installer из /tmp)
     # ====================================================================
     echo "[4/8] Копирование deployment_errors (папки 1ce-installer из /tmp)..."
+    # [ДОБАВЛЕНО] Лог шага 4
+    log_msg "INFO" "[ШАГ 4] Поиск ошибок развертывания в TMP..."
 
     TEMP_PATH="${TMPDIR:-/tmp}"
 
     # Копирование папки 1ce-installer-crash
     if [ -d "$TEMP_PATH/1ce-installer-crash" ]; then
         echo "   - Найдена папка 1ce-installer-crash"
+        # [ДОБАВЛЕНО] Лог краша
+        log_msg "INFO" "Обнаружен краш-дамп инсталлятора."
         TARGET_CRASH="$DEPLOYMENT_ERRORS_PATH/1ce-installer-crash"
         mkdir -p "$TARGET_CRASH"
         cp -r "$TEMP_PATH/1ce-installer-crash"/* "$TARGET_CRASH/" 2>/dev/null
@@ -323,8 +386,12 @@ else
 
         if cp -r "$LATEST_INSTALLER_FOLDER"/* "$TARGET_INSTALLER/" 2>/dev/null; then
             echo "   - Папка $LATEST_INSTALLER_NAME успешно скопирована"
+            # [ДОБАВЛЕНО] Лог успеха
+            log_msg "INFO" "Папка инсталлятора скопирована."
         else
             echo "   - ОШИБКА: Не удалось скопировать папку $LATEST_INSTALLER_NAME"
+            # [ДОБАВЛЕНО] Лог ошибки
+            log_msg "ERROR" "Ошибка копирования папки инсталлятора."
         fi
     else
         echo "   - Папки 1ce-installer-20* не найдены в $TEMP_PATH"
@@ -335,6 +402,8 @@ else
     #  [5/8] Сбор информации о запущенных процессах
     # ====================================================================
     echo "[5/8] Сбор информации о запущенных процессах..."
+    # [ДОБАВЛЕНО] Лог шага 5
+    log_msg "INFO" "[ШАГ 5] Сбор списка процессов..."
 
     PROCESSES_FILE="$COMPUTER_PATH/processes.txt"
 
@@ -390,6 +459,8 @@ else
     #  [6/8] Копирование рабочих пространств (recentworkspace)
     # ====================================================================
     echo "[6/8] Копирование рабочих пространств (recentworkspace)..."
+    # [ДОБАВЛЕНО] Лог шага 6
+    log_msg "INFO" "[ШАГ 6] Обработка рабочих пространств..."
 
     INPUT_FILE="$HOME/1c-enterprise-element/.storage/recentworkspace.json"
     WORKSPACE_DIR="$COMPUTER_PATH/workspaces"
@@ -400,6 +471,8 @@ else
     if [ ! -f "$INPUT_FILE" ]; then
         echo "   - [ОШИБКА] Файл recentworkspace.json не найден!"
         echo "Файл recentworkspace.json не найден" > "$WORKSPACE_DIR/not_found.txt"
+        # [ДОБАВЛЕНО] Лог ошибки
+        log_msg "WARNING" "Конфигурационный файл workspace не найден."
     else
         # ---- Разбор JSON ----
         JSON_CONTENT=$(cat "$INPUT_FILE" 2>/dev/null)
@@ -427,6 +500,8 @@ for uri in data.get('recentRoots', []):
         if [ -z "$PATHS_LIST" ]; then
             echo "   - Не удалось извлечь пути из recentworkspace.json"
             echo "Не удалось разобрать JSON" > "$WORKSPACE_DIR/parse_error.txt"
+            # [ДОБАВЛЕНО] Лог парсинга
+            log_msg "ERROR" "Ошибка парсинга recentworkspace.json."
         else
             # Функция декодирования URI
             decode_uri() {
@@ -468,6 +543,8 @@ for uri in data.get('recentRoots', []):
                         echo "     - Папка скопирована успешно"
                     else
                         echo "     - ОШИБКА при копировании папки"
+                        # [ДОБАВЛЕНО] Лог ошибки копирования
+                        log_msg "ERROR" "Ошибка копирования папки workspace: $WIN_PATH"
                     fi
 
                 elif [ -f "$WIN_PATH" ]; then
@@ -502,10 +579,14 @@ for uri in data.get('recentRoots', []):
                         echo "     - Файл скопирован успешно"
                     else
                         echo "     - ОШИБКА при копировании файла"
+                        # [ДОБАВЛЕНО] Лог ошибки копирования
+                        log_msg "ERROR" "Ошибка копирования файла workspace: $WIN_PATH"
                     fi
 
                 else
                     echo "     [НЕ НАЙДЕНО] $WIN_PATH"
+                    # [ДОБАВЛЕНО] Лог отсутствия
+                    log_msg "WARNING" "Путь workspace не найден на диске: $WIN_PATH"
                 fi
 
             done <<< "$PATHS_LIST"
@@ -522,6 +603,8 @@ fi
 #  [7/8] Сбор информации о Java
 # ====================================================================
 echo "[7/8] Сбор информации о Java..."
+# [ДОБАВЛЕНО] Лог шага 7
+log_msg "INFO" "[ШАГ 7] Проверка версии Java..."
 
 JAVA_REPORT="$COMPUTER_PATH/java_report.txt"
 {
@@ -552,6 +635,8 @@ echo "   - Информация о Java сохранена в java_report.txt"
 #  [8/8] Создание сводного отчёта
 # ====================================================================
 echo "[8/8] Создание сводного отчета..."
+# [ДОБАВЛЕНО] Лог шага 8
+log_msg "INFO" "[ШАГ 8] Генерация сводного отчета..."
 
 SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
 
@@ -717,6 +802,8 @@ if [ ! -f "$COMPUTERS_LIST_FILE" ]; then
 fi
 
 echo "$CURRENT_DATE | $CURRENT_TIME | $COMPUTER_NAME | $COLLECTION_MODE" >> "$COMPUTERS_LIST_FILE"
+# [ДОБАВЛЕНО] Лог завершения
+log_msg "INFO" "Сбор данных завершен. Отчет сформирован."
 
 # ====================================================================
 #  ИТОГОВЫЙ ВЫВОД
@@ -757,3 +844,4 @@ fi
 echo ""
 echo "Сводный отчёт: $SUMMARY_FILE"
 echo "Список компьютеров за $DATE_FOLDER: $COMPUTERS_LIST_FILE"
+read -p "Press enter to continue"

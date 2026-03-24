@@ -1,6 +1,6 @@
 ========================================================
   ДИАГНОСТИКА СИСТЕМЫ — Justiks
-  Дата сбора: 24.03.2026 13:23:13
+  Дата сбора: 24.03.2026 13:57:46
 ========================================================
 
 --- ЯДРО / ОС ---
@@ -39,7 +39,7 @@ Thread(s) per core:                      2
 Сокетов:                                 1
 Степпинг:                                1
 Frequency boost:                         enabled
-CPU(s) scaling MHz:                      101%
+CPU(s) scaling MHz:                      98%
 CPU max MHz:                             2300,0000
 CPU min MHz:                             1400,0000
 BogoMIPS:                                4591,42
@@ -73,14 +73,14 @@ Vulnerability Vmscape:                   Mitigation; IBPB before exit to userspa
 
 --- ОПЕРАТИВНАЯ ПАМЯТЬ ---
 MemTotal:       14251592 kB
-MemFree:          434712 kB
-MemAvailable:    5365924 kB
+MemFree:          715628 kB
+MemAvailable:    5203340 kB
 SwapTotal:       4194300 kB
-SwapFree:        3954564 kB
+SwapFree:        3880404 kB
 
                total        used        free      shared  buff/cache   available
-Mem:            13Gi       8,5Gi       423Mi       212Mi       4,6Gi       5,1Gi
-Swap:          4,0Gi       234Mi       3,8Gi
+Mem:            13Gi       8,6Gi       698Mi       221Mi       4,3Gi       5,0Gi
+Swap:          4,0Gi       306Mi       3,7Gi
 
 --- ВИДЕОКАРТА ---
 03:00.0 VGA compatible controller: Advanced Micro Devices, Inc. [AMD/ATI] Picasso/Raven 2 [Radeon Vega Series / Radeon Vega Mobile Series] (rev c1)
@@ -114,14 +114,14 @@ tmpfs            tmpfs      1,4G         192K  1,4G            1% /run/user/1000
     link/ether 44:e5:17:cd:0f:a0 brd ff:ff:ff:ff:ff:ff
     altname wlx44e517cd0fa0
     inet 192.168.31.245/24 brd 192.168.31.255 scope global dynamic noprefixroute wlp1s0
-       valid_lft 39376sec preferred_lft 39376sec
+       valid_lft 37303sec preferred_lft 37303sec
     inet6 fe80::9a66:c067:126:c94c/64 scope link noprefixroute 
        valid_lft forever preferred_lft forever
 3: br-43044619cf06: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default 
     link/ether 8e:ee:33:d2:b8:34 brd ff:ff:ff:ff:ff:ff
     inet 172.22.0.1/16 brd 172.22.255.255 scope global br-43044619cf06
        valid_lft forever preferred_lft forever
-4: br-4d711421fb29: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue state UP group default 
+4: br-4d711421fb29: <NO-CARRIER,BROADCAST,MULTICAST,UP> mtu 1500 qdisc noqueue state DOWN group default 
     link/ether d6:99:32:ba:5b:ea brd ff:ff:ff:ff:ff:ff
     inet 172.20.0.1/16 brd 172.20.255.255 scope global br-4d711421fb29
        valid_lft forever preferred_lft forever
@@ -175,13 +175,9 @@ tmpfs            tmpfs      1,4G         192K  1,4G            1% /run/user/1000
        valid_lft forever preferred_lft forever
     inet6 fe80::104:b621:c67a:30e3/64 scope link stable-privacy proto kernel_ll 
        valid_lft forever preferred_lft forever
-2609: veth3cb1ff7@if2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-ac75342d480f state UP group default 
-    link/ether 46:ad:60:16:5d:90 brd ff:ff:ff:ff:ff:ff link-netnsid 1
-    inet6 fe80::44ad:60ff:fe16:5d90/64 scope link proto kernel_ll 
-       valid_lft forever preferred_lft forever
-2610: vethcd8cc32@if2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-4d711421fb29 state UP group default 
-    link/ether 3a:f0:44:cc:bc:c3 brd ff:ff:ff:ff:ff:ff link-netnsid 2
-    inet6 fe80::38f0:44ff:fecc:bcc3/64 scope link tentative proto kernel_ll 
+2893: vethc70e42d@if2: <BROADCAST,MULTICAST,UP,LOWER_UP> mtu 1500 qdisc noqueue master br-ac75342d480f state UP group default 
+    link/ether 9e:3d:a7:1b:a1:39 brd ff:ff:ff:ff:ff:ff link-netnsid 1
+    inet6 fe80::9c3d:a7ff:fe1b:a139/64 scope link proto kernel_ll 
        valid_lft forever preferred_lft forever
 
 --- PCI-УСТРОЙСТВА ---
@@ -225,4 +221,4 @@ Bus 003 Device 004: ID 322e:2103 Sonix Technology Co., Ltd. USB2.0 HD UVC WebCam
 Bus 004 Device 001: ID 1d6b:0003 Linux Foundation 3.0 root hub
 
 --- UPTIME ---
- 13:23:13 up 16:20,  1 user,  load average: 5,46, 3,67, 2,54
+ 13:57:46 up 16:54,  1 user,  load average: 1,72, 2,18, 2,51
