@@ -39,6 +39,7 @@ log_msg() {
 #   full  - собирать ВСЮ информацию (шаги 1-8)
 #   light - собирать только базовую информацию (шаги 1, 2, 7 и 8)
 COLLECTION_MODE="light"
+SCRIPT_VERSION="1.1"
 # =====================================================
 
 # ---- Определяем путь к устройству, с которого запущен скрипт ----
@@ -61,6 +62,16 @@ DEPLOYMENT_ERRORS_PATH="$COMPUTER_PATH/deployment_errors"
 
 # [ДОБАВЛЕНО] Определение файла технического журнала
 EXEC_LOG="$COMPUTER_PATH/script_execution.log"
+
+
+# Инфо о скрипте
+SCRIPT_INFO_FILE="$COMPUTER_PATH/script_info.txt"
+
+echo "Версия скрипта: $SCRIPT_VERSION"
+
+{
+  echo "Версия скрипта: $SCRIPT_VERSION"
+} > "$SCRIPT_INFO_FILE"
 
 echo "====================================================="
 echo "       СБОР ИНФОРМАЦИИ О СИСТЕМЕ (Linux)"

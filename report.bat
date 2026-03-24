@@ -22,7 +22,9 @@ setlocal enabledelayedexpansion
 ::   full  - собирать ВСЮ информацию (шаги 1-8)
 ::   light - собирать только базовую информацию (шаги 1, 2, 7 и 8)
 set "COLLECTION_MODE=light"
+set "SCRIPT_VERSION=1.1"
 :: =====================================================
+
 
 :: Определяем путь к устройству, с которого запущен скрипт
 set "SCRIPT_DRIVE=%~d0"
@@ -72,6 +74,16 @@ echo Создание структуры папок...
 :: Создаем необходимые папки
 if not exist "%BASE_PATH%" mkdir "%BASE_PATH%"
 if not exist "%COMPUTER_PATH%" mkdir "%COMPUTER_PATH%"
+
+:: Инфо о скрипте
+set "SCRIPT_INFO_FILE=%COMPUTER_PATH%\script_info.txt"
+
+echo "Версия скрипта: %SCRIPT_VERSION%"
+
+(
+  echo "Версия скрипта: %SCRIPT_VERSION%"
+) > "%SCRIPT_INFO_FILE%"
+
 
 :: [ДОБАВЛЕНО] Инициализация лога после создания папки
 call :LogMsg "INFO" "Запуск скрипта сбора информации. Режим: %COLLECTION_MODE%"
