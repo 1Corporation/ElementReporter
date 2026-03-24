@@ -1,95 +1,168 @@
 @echo off
-chcp 1251 >nul
+:: [„Ž€‚‹…Ž] à®¢¥àª  ¯à ¢  ¤¬¨­¨áâà â®à 
+net session >nul 2>&1
+if %errorlevel% neq 0 (
+    echo.
+    echo =====================================================
+    echo [‚ˆŒ€ˆ…] ‘ªà¨¯â § ¯ãé¥­ …‡ ¯à ¢ €¤¬¨­¨áâà â®à !
+    echo "¥ª®â®àë¥ ¤ ­­ë¥ (dxdiag, systeminfo, «®£¨) ¬®£ãâ ¡ëâì ­¥¤®áâã¯­ë."
+    echo ¥ª®¬¥­¤ã¥âáï ¯¥à¥§ ¯ãáâ¨âì áªà¨¯â ®â ¨¬¥­¨ €¤¬¨­¨áâà â®à .
+    echo =====================================================
+    echo.
+    timeout /t 5 >nul
+)
+
+chcp 866 >nul
 setlocal enabledelayedexpansion
 
-:: Определяем путь к устройству, с которого запущен скрипт
+:: =====================================================
+:: €‘’Ž‰Šˆ ‘Šˆ’€
+:: =====================================================
+:: ¥¦¨¬ á¡®à  ¨­ä®à¬ æ¨¨:
+::   full  - á®¡¨à âì ‚‘ž ¨­ä®à¬ æ¨î (è £¨ 1-8)
+::   light - á®¡¨à âì â®«ìª® ¡ §®¢ãî ¨­ä®à¬ æ¨î (è £¨ 1, 2, 7 ¨ 8)
+set "COLLECTION_MODE=light"
+:: =====================================================
+
+:: Ž¯à¥¤¥«ï¥¬ ¯ãâì ª ãáâà®©áâ¢ã, á ª®â®à®£® § ¯ãé¥­ áªà¨¯â
 set "SCRIPT_DRIVE=%~d0"
 set "SCRIPT_PATH=%~dp0"
 
-:: Убираем завершающий обратный слеш для красоты
+:: “¡¨à ¥¬ § ¢¥àè îé¨© ®¡à â­ë© á«¥è ¤«ï ªà á®âë
 if "%SCRIPT_PATH:~-1%"=="\" set "SCRIPT_PATH=%SCRIPT_PATH:~0,-1%"
 
-:: Получаем текущую дату в формате ДДММГГ
+:: ®«ãç ¥¬ â¥ªãéãî ¤ âã ¢ ä®à¬ â¥ „„ŒŒƒƒ
 set "DD=%DATE:~0,2%"
 set "MM=%DATE:~3,2%"
 set "YY=%DATE:~8,2%"
 set "DATE_FOLDER=1C Element report %DD%%MM%%YY%"
 
-:: Получаем имя компьютера
+:: ®«ãç ¥¬ ¨¬ï ª®¬¯ìîâ¥à 
 set "COMPUTER_NAME=%COMPUTERNAME%"
 
-:: Создаем иерархию папок на устройстве, откуда запущен скрипт
+:: ‘®§¤ ¥¬ ¨¥à àå¨î ¯ ¯®ª ­  ãáâà®©áâ¢¥, ®âªã¤  § ¯ãé¥­ áªà¨¯â
 set "BASE_PATH=%SCRIPT_PATH%\%DATE_FOLDER%"
 set "COMPUTER_PATH=%BASE_PATH%\%COMPUTER_NAME%"
 set "LOGS_PATH=%COMPUTER_PATH%\logs"
 set "DEPLOYMENT_ERRORS_PATH=%COMPUTER_PATH%\deployment_errors"
 
-echo =====================================================
-echo       СБОР ИНФОРМАЦИИ О СИСТЕМЕ
-echo =====================================================
-echo.
-echo Скрипт запущен с: %SCRIPT_DRIVE%
-echo Путь сохранения: %SCRIPT_PATH%
-echo Дата: %DATE_FOLDER%
-echo Компьютер: %COMPUTER_NAME%
-echo.
-echo Создание структуры папок...
+:: [„Ž€‚‹…Ž]  áâà®©ª  ä ©«  ¦ãà­ «  ¢ë¯®«­¥­¨ï (â¥å­¨ç¥áª¨© «®£ áªà¨¯â )
+set "EXEC_LOG=%COMPUTER_PATH%\script_execution.log"
 
-:: Создаем необходимые папки
+echo =====================================================
+echo       ‘Ž ˆ”ŽŒ€–ˆˆ Ž ‘ˆ‘’…Œ…
+echo =====================================================
+echo.
+echo ‘ªà¨¯â § ¯ãé¥­ á: %SCRIPT_DRIVE%
+echo ãâì á®åà ­¥­¨ï: %SCRIPT_PATH%
+echo „ â : %DATE_FOLDER%
+echo Š®¬¯ìîâ¥à: %COMPUTER_NAME%
+echo ¥¦¨¬ á¡®à : %COLLECTION_MODE%
+
+
+if /i "%COLLECTION_MODE%"=="full" (
+    echo ¥¦¨¬ FULL - ¡ã¤¥â á®¡à ­  ‚‘Ÿ ¨­ä®à¬ æ¨ï (è £¨ 1-8)
+) else (
+    echo ¥¦¨¬ LIGHT - ¡ã¤¥â á®¡à ­  â®«ìª® ¡ §®¢ ï ¨­ä®à¬ æ¨ï (è £¨ 1, 2, 7 ¨ 8)
+)
+
+echo.
+echo ‘®§¤ ­¨¥ áâàãªâãàë ¯ ¯®ª...
+
+:: ‘®§¤ ¥¬ ­¥®¡å®¤¨¬ë¥ ¯ ¯ª¨
 if not exist "%BASE_PATH%" mkdir "%BASE_PATH%"
 if not exist "%COMPUTER_PATH%" mkdir "%COMPUTER_PATH%"
-if not exist "%LOGS_PATH%" mkdir "%LOGS_PATH%"
-if not exist "%DEPLOYMENT_ERRORS_PATH%" mkdir "%DEPLOYMENT_ERRORS_PATH%"
 
-echo [1/8] Сбор информации об аппаратной конфигурации и ОС...
-:: Запускаем dxdiag и сохраняем результат
+:: [„Ž€‚‹…Ž] ˆ­¨æ¨ «¨§ æ¨ï «®£  ¯®á«¥ á®§¤ ­¨ï ¯ ¯ª¨
+call :LogMsg "INFO" "‡ ¯ãáª áªà¨¯â  á¡®à  ¨­ä®à¬ æ¨¨. ¥¦¨¬: %COLLECTION_MODE%"
+call :LogMsg "INFO" "–¥«¥¢ ï ¯ ¯ª  á®§¤ ­ : %COMPUTER_PATH%"
+
+::  ¯ª¨ «®£®¢ á®§¤ ¥¬ â®«ìª® ¢ FULL à¥¦¨¬¥, çâ®¡ë ­¥ ¬ãá®à¨âì ¯ãáâë¬¨ ¯ ¯ª ¬¨ ¢ LIGHT
+if /i "%COLLECTION_MODE%"=="full" (
+    if not exist "%LOGS_PATH%" mkdir "%LOGS_PATH%"
+    if not exist "%DEPLOYMENT_ERRORS_PATH%" mkdir "%DEPLOYMENT_ERRORS_PATH%"
+    :: [„Ž€‚‹…Ž] ‹®£¨à®¢ ­¨¥ á®§¤ ­¨ï ¯®¤¯ ¯®ª
+    call :LogMsg "INFO" "‘®§¤ ­ë ¯ ¯ª¨ ¤«ï «®£®¢ ¨ ®è¨¡®ª à §¢¥àâë¢ ­¨ï."
+)
+
+echo [1/8] ‘¡®à ¨­ä®à¬ æ¨¨ ®¡  ¯¯ à â­®© ª®­ä¨£ãà æ¨¨ ¨ Ž‘...
+:: [„Ž€‚‹…Ž] ‹®£ ­ ç «  è £ 
+call :LogMsg "INFO" "[˜€ƒ 1] ‡ ¯ãáª dxdiag..."
+
+:: ‡ ¯ãáª ¥¬ dxdiag ¨ á®åà ­ï¥¬ à¥§ã«ìâ â
 start /wait dxdiag /whql:off /t "%COMPUTER_PATH%\%COMPUTER_NAME%_diag.txt"
-echo    - Диагностика сохранена в %COMPUTER_NAME%_diag.txt
 
-echo [2/8] Сбор информации о компонентах 1С...
+:: [„Ž€‚‹…Ž] à®¢¥àª  á®§¤ ­¨ï ä ©«  ¤¨ £­®áâ¨ª¨
+if exist "%COMPUTER_PATH%\%COMPUTER_NAME%_diag.txt" (
+    call :LogMsg "INFO" "DxDiag ãá¯¥è­® § ¢¥àè¥­."
+) else (
+    call :LogMsg "ERROR" "” ©« ¤¨ £­®áâ¨ª¨ ­¥ á®§¤ ­! ‚®§¬®¦­  ®è¨¡ª  ¯à ¢ ¨«¨ dxdiag."
+)
+
+echo    - „¨ £­®áâ¨ª  á®åà ­¥­  ¢ %COMPUTER_NAME%_diag.txt
+
+echo [2/8] ‘¡®à ¨­ä®à¬ æ¨¨ ® ª®¬¯®­¥­â å 1‘...
+call :LogMsg "INFO" "[˜€ƒ 2] ®¨áª ãáâ ­®¢«¥­­ëå ¢¥àá¨© 1‘..."
 set "COMPONENTS_FILE=%COMPUTER_PATH%\installed_versions.txt"
 (
     echo ========================================
-    echo Компьютер: %COMPUTER_NAME%
-    echo Дата сбора: %DATE% %TIME%
+    echo Š®¬¯ìîâ¥à: %COMPUTER_NAME%
+    echo „ â  á¡®à : %DATE% %TIME%
     echo ========================================
     echo.
-    echo Компоненты 1С в C:\Program Files\1C\1CE\components:
+    echo Š®¬¯®­¥­âë 1‘ ¢ C:\Program Files\1C\1CE\components:
     echo ----------------------------------------
 ) > "%COMPONENTS_FILE%"
 
-:: Проверяем существование папки с компонентами
+:: à®¢¥àï¥¬ áãé¥áâ¢®¢ ­¨¥ ¯ ¯ª¨ á ª®¬¯®­¥­â ¬¨
 if exist "C:\Program Files\1C\1CE\components" (
     dir "C:\Program Files\1C\1CE\components" /b /ad >> "%COMPONENTS_FILE%" 2>nul
+    :: [„Ž€‚‹…Ž] ‹®£ ãá¯¥å 
+    call :LogMsg "INFO" " ¯ª  ª®¬¯®­¥­â®¢ ­ ©¤¥­  ¨ ¯à®áª ­¨à®¢ ­ ."
 ) else (
-    echo Папка не найдена: C:\Program Files\1C\1CE\components >> "%COMPONENTS_FILE%"
+    echo  ¯ª  ­¥ ­ ©¤¥­ : C:\Program Files\1C\1CE\components >> "%COMPONENTS_FILE%"
+    :: [„Ž€‚‹…Ž] ‹®£ ®è¨¡ª¨
+    call :LogMsg "WARNING" " ¯ª  ª®¬¯®­¥­â®¢ 1‘ ­¥ ­ ©¤¥­  ¯® áâ ­¤ àâ­®¬ã ¯ãâ¨."
 )
-echo    - Список компонентов сохранен в installed_versions.txt
+echo    - ‘¯¨á®ª ª®¬¯®­¥­â®¢ á®åà ­¥­ ¢ installed_versions.txt
 
-echo [3/8] Копирование логов 1С...
-:: Формируем путь к папке с логами
+:: =====================================================
+:: Ž‚…Š€ …†ˆŒ€ „‹Ÿ ˜€ƒŽ‚ 3-6
+:: =====================================================
+if /i not "%COLLECTION_MODE%"=="full" (
+    echo.
+    echo -----------------------------------------------------
+    echo ¥¦¨¬ "%COLLECTION_MODE%": ˜ £¨ 3, 4, 5, 6 ¯à®¯ãáª îâáï.
+    echo -----------------------------------------------------
+    call :LogMsg "INFO" "à®¯ãáª è £®¢ 3-6 á®£« á­® à¥¦¨¬ã LIGHT."
+    goto :Step7
+)
+:: =====================================================
+
+echo [3/8] Š®¯¨à®¢ ­¨¥ «®£®¢ 1‘...
+call :LogMsg "INFO" "[˜€ƒ 3]  ç â ¯®¨áª «®£®¢ 1‘..."
+:: ”®à¬¨àã¥¬ ¯ãâì ª ¯ ¯ª¥ á «®£ ¬¨
 set "USER_PATH=%HOMEDRIVE%%HOMEPATH%"
 set "LOGS_SOURCE=%USER_PATH%\1c-enterprise-element\.storage\logs"
 
 if exist "%LOGS_SOURCE%" (
-    echo    - Поиск папок с логами в %LOGS_SOURCE%
+    echo    - ®¨áª ¯ ¯®ª á «®£ ¬¨ ¢ %LOGS_SOURCE%
 
-    :: Переменные для хранения информации о самой свежей папке
+    :: ¥à¥¬¥­­ë¥ ¤«ï åà ­¥­¨ï ¨­ä®à¬ æ¨¨ ® á ¬®© á¢¥¦¥© ¯ ¯ª¥
     set "LATEST_FOLDER="
     set "LATEST_DATE=0"
 
-    :: Перебираем все подпапки в директории logs
+    :: ¥à¥¡¨à ¥¬ ¢á¥ ¯®¤¯ ¯ª¨ ¢ ¤¨à¥ªâ®à¨¨ logs
     for /d %%i in ("%LOGS_SOURCE%\*") do (
-        :: Получаем информацию о папке
+        :: ®«ãç ¥¬ ¨­ä®à¬ æ¨î ® ¯ ¯ª¥
         set "FOLDER_PATH=%%i"
         set "FOLDER_NAME=%%~nxi"
 
-        :: Получаем ДАТУ ИЗМЕНЕНИЯ папки (последние изменения)
+        :: ®«ãç ¥¬ „€’“ ˆ‡Œ……ˆŸ ¯ ¯ª¨ (¯®á«¥¤­¨¥ ¨§¬¥­¥­¨ï)
         for %%f in ("%%i") do (
             set "FOLDER_DATE=%%~tf"
 
-            :: Преобразуем дату для сравнения (формат: ГГГГММДДЧЧММСС)
-            :: Предполагаем формат даты: ДД.ММ.ГГГГ ЧЧ:ММ:СС
+            :: à¥®¡à §ã¥¬ ¤ âã ¤«ï áà ¢­¥­¨ï (ä®à¬ â: ƒƒƒƒŒŒ„„——ŒŒ‘‘)
             set "DAY=!FOLDER_DATE:~0,2!"
             set "MONTH=!FOLDER_DATE:~3,2!"
             set "YEAR=!FOLDER_DATE:~6,4!"
@@ -97,7 +170,7 @@ if exist "%LOGS_SOURCE%" (
             set "MINUTE=!FOLDER_DATE:~14,2!"
             set "SECOND=!FOLDER_DATE:~17,2!"
 
-            :: Убираем возможные пробелы
+            :: “¡¨à ¥¬ ¢®§¬®¦­ë¥ ¯à®¡¥«ë
             set "YEAR=!YEAR: =0!"
             set "MONTH=!MONTH: =0!"
             set "DAY=!DAY: =0!"
@@ -107,7 +180,7 @@ if exist "%LOGS_SOURCE%" (
 
             set "DATE_NUM=!YEAR!!MONTH!!DAY!!HOUR!!MINUTE!!SECOND!"
 
-            :: Сравниваем с текущей максимальной датой изменения
+            :: ‘à ¢­¨¢ ¥¬ á â¥ªãé¥© ¬ ªá¨¬ «ì­®© ¤ â®© ¨§¬¥­¥­¨ï
             if !DATE_NUM! gtr !LATEST_DATE! (
                 set "LATEST_DATE=!DATE_NUM!"
                 set "LATEST_FOLDER=%%i"
@@ -116,55 +189,62 @@ if exist "%LOGS_SOURCE%" (
         )
     )
 
-    :: Если нашли подходящие папки, копируем самую свежую целиком
+    :: …á«¨ ­ è«¨ ¯®¤å®¤ïé¨¥ ¯ ¯ª¨, ª®¯¨àã¥¬ á ¬ãî á¢¥¦ãî æ¥«¨ª®¬
     if defined LATEST_FOLDER (
-        echo    - Найдена самая свежая папка: !LATEST_FOLDER_NAME!
-        echo    - Дата последнего изменения: !LATEST_DATE!
-        echo    - Копирование папки целиком...
+        echo    -  ©¤¥­  á ¬ ï á¢¥¦ ï ¯ ¯ª : !LATEST_FOLDER_NAME!
+        echo    - „ â  ¯®á«¥¤­¥£® ¨§¬¥­¥­¨ï: !LATEST_DATE!
+        echo    - Š®¯¨à®¢ ­¨¥ ¯ ¯ª¨ æ¥«¨ª®¬...
+        call :LogMsg "INFO" "Ž¡­ àã¦¥­  á¢¥¦ ï ¯ ¯ª  «®£®¢: !LATEST_FOLDER_NAME!. Š®¯¨àã¥¬..."
 
-        :: Создаем подпапку с именем исходной папки в директории logs
+        :: ‘®§¤ ¥¬ ¯®¤¯ ¯ªã á ¨¬¥­¥¬ ¨áå®¤­®© ¯ ¯ª¨ ¢ ¤¨à¥ªâ®à¨¨ logs
         set "TARGET_FOLDER=%LOGS_PATH%\!LATEST_FOLDER_NAME!"
         if not exist "!TARGET_FOLDER!" mkdir "!TARGET_FOLDER!"
 
-        :: Копируем всю папку целиком со всем содержимым
+        :: Š®¯¨àã¥¬ ¢áî ¯ ¯ªã æ¥«¨ª®¬ á® ¢á¥¬ á®¤¥à¦¨¬ë¬
         xcopy "!LATEST_FOLDER!" "!TARGET_FOLDER!\" /e /i /y /q >nul
 
-        :: Проверяем результат копирования
+        :: à®¢¥àï¥¬ à¥§ã«ìâ â ª®¯¨à®¢ ­¨ï
         if errorlevel 1 (
-            echo    - ОШИБКА: Не удалось скопировать папку с логами
-            echo Ошибка копирования из !LATEST_FOLDER! > "%LOGS_PATH%\copy_error.txt"
+            echo    - Ž˜ˆŠ€: ¥ ã¤ «®áì áª®¯¨à®¢ âì ¯ ¯ªã á «®£ ¬¨
+            echo Žè¨¡ª  ª®¯¨à®¢ ­¨ï ¨§ !LATEST_FOLDER! > "%LOGS_PATH%\copy_error.txt"
+            call :LogMsg "ERROR" "Žè¨¡ª  xcopy ¯à¨ ª®¯¨à®¢ ­¨¨ «®£®¢ ¨§ !LATEST_FOLDER!."
         ) else (
-            echo    - Папка !LATEST_FOLDER_NAME! успешно скопирована в %LOGS_PATH%
-            echo Источник: !LATEST_FOLDER! > "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
-            echo Дата копирования: %DATE% %TIME% >> "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
-            echo Дата последнего изменения исходной папки: !LATEST_DATE! >> "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
+            echo    -  ¯ª  !LATEST_FOLDER_NAME! ãá¯¥è­® áª®¯¨à®¢ ­  ¢ %LOGS_PATH%
+            echo ˆáâ®ç­¨ª: !LATEST_FOLDER! > "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
+            echo „ â  ª®¯¨à®¢ ­¨ï: %DATE% %TIME% >> "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
+            echo „ â  ¯®á«¥¤­¥£® ¨§¬¥­¥­¨ï ¨áå®¤­®© ¯ ¯ª¨: !LATEST_DATE! >> "%LOGS_PATH%\!LATEST_FOLDER_NAME!\copied_from.txt"
+            call :LogMsg "INFO" "‹®£¨ ãá¯¥è­® áª®¯¨à®¢ ­ë."
         )
     ) else (
-        echo    - Не найдены папки с логами в %LOGS_SOURCE%
-        echo Папки с логами не найдены > "%LOGS_PATH%\no_logs_found.txt"
+        echo    - ¥ ­ ©¤¥­ë ¯ ¯ª¨ á «®£ ¬¨ ¢ %LOGS_SOURCE%
+        echo  ¯ª¨ á «®£ ¬¨ ­¥ ­ ©¤¥­ë > "%LOGS_PATH%\no_logs_found.txt"
+        call :LogMsg "WARNING" " ¯ª  logs ¯ãáâ  ¨«¨ ­¥ á®¤¥à¦¨â ¯®¤¯ ¯®ª."
     )
 ) else (
-    echo    - Папка с логами не существует: %LOGS_SOURCE%
-    echo Папка %LOGS_SOURCE% не существует > "%LOGS_PATH%\source_not_exists.txt"
+    echo    -  ¯ª  á «®£ ¬¨ ­¥ áãé¥áâ¢ã¥â: %LOGS_SOURCE%
+    echo  ¯ª  %LOGS_SOURCE% ­¥ áãé¥áâ¢ã¥â > "%LOGS_PATH%\source_not_exists.txt"
+    call :LogMsg "WARNING" "ˆáå®¤­ ï ¯ ¯ª  «®£®¢ 1C ­¥ ­ ©¤¥­  (%LOGS_SOURCE%)."
 )
 
-echo [4/8] Копирование deployment_errors (папки 1ce-installer из TEMP)...
+echo [4/8] Š®¯¨à®¢ ­¨¥ deployment_errors (¯ ¯ª¨ 1ce-installer ¨§ TEMP)...
+call :LogMsg "INFO" "[˜€ƒ 4] ®¨áª ®è¨¡®ª à §¢¥àâë¢ ­¨ï ¢ TEMP..."
 set "TEMP_PATH=%TEMP%"
 
-:: Копирование папки 1ce-installer-crash (всегда копируем, если существует)
+:: Š®¯¨à®¢ ­¨¥ ¯ ¯ª¨ 1ce-installer-crash (¢á¥£¤  ª®¯¨àã¥¬, ¥á«¨ áãé¥áâ¢ã¥â)
 if exist "%TEMP_PATH%\1ce-installer-crash" (
-    echo    - Найдена папка 1ce-installer-crash
+    echo    -  ©¤¥­  ¯ ¯ª  1ce-installer-crash
+    call :LogMsg "INFO" "Ž¡­ àã¦¥­ ªà è-¤ ¬¯ ¨­áâ ««ïâ®à ."
     set "TARGET_CRASH=%DEPLOYMENT_ERRORS_PATH%\1ce-installer-crash"
     if not exist "!TARGET_CRASH!" mkdir "!TARGET_CRASH!"
     xcopy "%TEMP_PATH%\1ce-installer-crash" "!TARGET_CRASH!\" /e /i /y /q >nul
-    echo    - Папка 1ce-installer-crash скопирована
+    echo    -  ¯ª  1ce-installer-crash áª®¯¨à®¢ ­ 
 ) else (
-    echo    - Папка 1ce-installer-crash не найдена в %TEMP_PATH%
-    echo Папка 1ce-installer-crash не найдена > "%DEPLOYMENT_ERRORS_PATH%\crash_not_found.txt"
+    echo    -  ¯ª  1ce-installer-crash ­¥ ­ ©¤¥­  ¢ %TEMP_PATH%
+    echo  ¯ª  1ce-installer-crash ­¥ ­ ©¤¥­  > "%DEPLOYMENT_ERRORS_PATH%\crash_not_found.txt"
 )
 
-:: Поиск и копирование самой свежей папки 1ce-installer-20*
-echo    - Поиск папок 1ce-installer-20* в %TEMP_PATH%
+:: ®¨áª ¨ ª®¯¨à®¢ ­¨¥ á ¬®© á¢¥¦¥© ¯ ¯ª¨ 1ce-installer-20*
+echo    - ®¨áª ¯ ¯®ª 1ce-installer-20* ¢ %TEMP_PATH%
 
 set "LATEST_INSTALLER_FOLDER="
 set "LATEST_INSTALLER_DATE=0"
@@ -173,11 +253,11 @@ for /d %%i in ("%TEMP_PATH%\1ce-installer-20*") do (
     set "FOLDER_PATH=%%i"
     set "FOLDER_NAME=%%~nxi"
 
-    :: Получаем дату изменения папки
+    :: ®«ãç ¥¬ ¤ âã ¨§¬¥­¥­¨ï ¯ ¯ª¨
     for %%f in ("%%i") do (
         set "FOLDER_DATE=%%~tf"
 
-        :: Преобразуем дату для сравнения
+        :: à¥®¡à §ã¥¬ ¤ âã ¤«ï áà ¢­¥­¨ï
         set "DAY=!FOLDER_DATE:~0,2!"
         set "MONTH=!FOLDER_DATE:~3,2!"
         set "YEAR=!FOLDER_DATE:~6,4!"
@@ -185,7 +265,7 @@ for /d %%i in ("%TEMP_PATH%\1ce-installer-20*") do (
         set "MINUTE=!FOLDER_DATE:~14,2!"
         set "SECOND=!FOLDER_DATE:~17,2!"
 
-        :: Убираем возможные пробелы
+        :: “¡¨à ¥¬ ¢®§¬®¦­ë¥ ¯à®¡¥«ë
         set "YEAR=!YEAR: =0!"
         set "MONTH=!MONTH: =0!"
         set "DAY=!DAY: =0!"
@@ -195,7 +275,7 @@ for /d %%i in ("%TEMP_PATH%\1ce-installer-20*") do (
 
         set "DATE_NUM=!YEAR!!MONTH!!DAY!!HOUR!!MINUTE!!SECOND!"
 
-        :: Сравниваем с текущей максимальной датой
+        :: ‘à ¢­¨¢ ¥¬ á â¥ªãé¥© ¬ ªá¨¬ «ì­®© ¤ â®©
         if !DATE_NUM! gtr !LATEST_INSTALLER_DATE! (
             set "LATEST_INSTALLER_DATE=!DATE_NUM!"
             set "LATEST_INSTALLER_FOLDER=%%i"
@@ -205,8 +285,8 @@ for /d %%i in ("%TEMP_PATH%\1ce-installer-20*") do (
 )
 
 if defined LATEST_INSTALLER_FOLDER (
-    echo    - Найдена самая свежая папка: !LATEST_INSTALLER_NAME!
-    echo    - Дата последнего изменения: !LATEST_INSTALLER_DATE!
+    echo    -  ©¤¥­  á ¬ ï á¢¥¦ ï ¯ ¯ª : !LATEST_INSTALLER_NAME!
+    echo    - „ â  ¯®á«¥¤­¥£® ¨§¬¥­¥­¨ï: !LATEST_INSTALLER_DATE!
 
     set "TARGET_INSTALLER=%DEPLOYMENT_ERRORS_PATH%\!LATEST_INSTALLER_NAME!"
     if not exist "!TARGET_INSTALLER!" mkdir "!TARGET_INSTALLER!"
@@ -214,124 +294,132 @@ if defined LATEST_INSTALLER_FOLDER (
     xcopy "!LATEST_INSTALLER_FOLDER!" "!TARGET_INSTALLER!\" /e /i /y /q >nul
 
     if errorlevel 1 (
-        echo    - ОШИБКА: Не удалось скопировать папку !LATEST_INSTALLER_NAME!
+        echo    - Ž˜ˆŠ€: ¥ ã¤ «®áì áª®¯¨à®¢ âì ¯ ¯ªã !LATEST_INSTALLER_NAME!
+        call :LogMsg "ERROR" "Žè¨¡ª  ª®¯¨à®¢ ­¨ï ¯ ¯ª¨ ¨­áâ ««ïâ®à ."
     ) else (
-        echo    - Папка !LATEST_INSTALLER_NAME! успешно скопирована
+        echo    -  ¯ª  !LATEST_INSTALLER_NAME! ãá¯¥è­® áª®¯¨à®¢ ­ 
+        call :LogMsg "INFO" " ¯ª  ¨­áâ ««ïâ®à  áª®¯¨à®¢ ­ ."
     )
 ) else (
-    echo    - Папки 1ce-installer-20* не найдены в %TEMP_PATH%
-    echo Папки 1ce-installer-20* не найдены > "%DEPLOYMENT_ERRORS_PATH%\installer_not_found.txt"
+    echo    -  ¯ª¨ 1ce-installer-20* ­¥ ­ ©¤¥­ë ¢ %TEMP_PATH%
+    echo  ¯ª¨ 1ce-installer-20* ­¥ ­ ©¤¥­ë > "%DEPLOYMENT_ERRORS_PATH%\installer_not_found.txt"
 )
 
-echo [5/8] Сбор информации о запущенных процессах...
+echo [5/8] ‘¡®à ¨­ä®à¬ æ¨¨ ® § ¯ãé¥­­ëå ¯à®æ¥áá å...
+call :LogMsg "INFO" "[˜€ƒ 5] ‘¡®à á¯¨áª  ¯à®æ¥áá®¢..."
 set "PROCESSES_FILE=%COMPUTER_PATH%\processes.txt"
 
-:: Получаем список процессов в CSV формате (удобно для импорта в Excel)
+:: ®«ãç ¥¬ á¯¨á®ª ¯à®æ¥áá®¢ ¢ CSV ä®à¬ â¥ (ã¤®¡­® ¤«ï ¨¬¯®àâ  ¢ Excel)
 (
     echo ====================================================
-    echo          ЗАПУЩЕННЫЕ ПРОЦЕССЫ (CSV ФОРМАТ)
+    echo          ‡€“™…›… Ž–…‘‘› (CSV ”ŽŒ€’)
     echo ====================================================
-    echo Компьютер: %COMPUTER_NAME%
-    echo Дата и время сбора: %DATE% %TIME%
+    echo Š®¬¯ìîâ¥à: %COMPUTER_NAME%
+    echo „ â  ¨ ¢à¥¬ï á¡®à : %DATE% %TIME%
     echo ====================================================
     echo.
-    echo "Имя_образа","PID","Имя_сессии","Номер_сессии","Память"
+    echo "ˆ¬ï_®¡à § ","PID","ˆ¬ï_á¥áá¨¨","®¬¥à_á¥áá¨¨"," ¬ïâì"
     echo ====================================================
 ) > "%PROCESSES_FILE%"
 
-:: Добавляем данные процессов в CSV формате
+:: „®¡ ¢«ï¥¬ ¤ ­­ë¥ ¯à®æ¥áá®¢ ¢ CSV ä®à¬ â¥
 tasklist /fo csv /nh >> "%PROCESSES_FILE%" 2>nul
+:: [„Ž€‚‹…Ž] ‹®£¨à®¢ ­¨¥ ®è¨¡ª¨ tasklist (­ ¯à¨¬¥à, ¥á«¨ ­¥â ¯à ¢)
+if %errorlevel% neq 0 call :LogMsg "ERROR" "¥ ã¤ «®áì ¢ë¯®«­¨âì tasklist."
 
-:: Добавляем информацию о системе
+:: „®¡ ¢«ï¥¬ ¨­ä®à¬ æ¨î ® á¨áâ¥¬¥
 (
     echo.
     echo ====================================================
-    echo          ИНФОРМАЦИЯ О СИСТЕМЕ
+    echo          ˆ”ŽŒ€–ˆŸ Ž ‘ˆ‘’…Œ…
     echo ====================================================
     echo.
 ) >> "%PROCESSES_FILE%"
 
-:: Используем systeminfo для получения базовой информации
-systeminfo | findstr /c:"Общее количество" /c:"Доступно физической" /c:"Время работы" /c:"Версия ОС" >> "%PROCESSES_FILE%" 2>nul
+:: ˆá¯®«ì§ã¥¬ systeminfo ¤«ï ¯®«ãç¥­¨ï ¡ §®¢®© ¨­ä®à¬ æ¨¨
+systeminfo | findstr /c:"Ž¡é¥¥ ª®«¨ç¥áâ¢®" /c:"„®áâã¯­® ä¨§¨ç¥áª®©" /c:"‚à¥¬ï à ¡®âë" /c:"‚¥àá¨ï Ž‘" >> "%PROCESSES_FILE%" 2>nul
 
-:: Добавляем общее количество процессов
+:: „®¡ ¢«ï¥¬ ®¡é¥¥ ª®«¨ç¥áâ¢® ¯à®æ¥áá®¢
 echo. >> "%PROCESSES_FILE%"
-echo Общее количество запущенных процессов: >> "%PROCESSES_FILE%"
+echo Ž¡é¥¥ ª®«¨ç¥áâ¢® § ¯ãé¥­­ëå ¯à®æ¥áá®¢: >> "%PROCESSES_FILE%"
 tasklist /fo csv 2>nul | find /c /v "" >> "%PROCESSES_FILE%"
 
-echo    - Информация о процессах сохранена в processes.txt (CSV формат)
+echo    - ˆ­ä®à¬ æ¨ï ® ¯à®æ¥áá å á®åà ­¥­  ¢ processes.txt (CSV ä®à¬ â)
 
-echo [6/8] Копирование рабочих пространств (recentworkspace)...
+echo [6/8] Š®¯¨à®¢ ­¨¥ à ¡®ç¨å ¯à®áâà ­áâ¢ (recentworkspace)...
+call :LogMsg "INFO" "[˜€ƒ 6] Ž¡à ¡®âª  à ¡®ç¨å ¯à®áâà ­áâ¢..."
 
-REM === НАСТРОЙКИ ===
+REM === €‘’Ž‰Šˆ ===
 set "INPUT_FILE=%USERPROFILE%\1c-enterprise-element\.storage\recentworkspace.json"
 set "WORKSPACE_DIR=%COMPUTER_PATH%\workspaces"
 REM =================
 
 if not exist "%WORKSPACE_DIR%" mkdir "%WORKSPACE_DIR%"
 
-echo    - Поиск конфига: "%INPUT_FILE%"
+echo    - ®¨áª ª®­ä¨£ : "%INPUT_FILE%"
 
 if not exist "%INPUT_FILE%" (
-    echo    - [ОШИБКА] Файл recentworkspace.json не найден!
-    echo Файл recentworkspace.json не найден > "%WORKSPACE_DIR%\not_found.txt"
+    echo    - [Ž˜ˆŠ€] ” ©« recentworkspace.json ­¥ ­ ©¤¥­!
+    echo ” ©« recentworkspace.json ­¥ ­ ©¤¥­ > "%WORKSPACE_DIR%\not_found.txt"
+    call :LogMsg "WARNING" "Š®­ä¨£ãà æ¨®­­ë© ä ©« workspace ­¥ ­ ©¤¥­."
     goto :SkipWorkspaces
 )
 
-REM Читаем содержимое файла в переменную (JSON в одну строку)
+REM —¨â ¥¬ á®¤¥à¦¨¬®¥ ä ©«  ¢ ¯¥à¥¬¥­­ãî (JSON ¢ ®¤­ã áâà®ªã)
 for /f "usebackq tokens=*" %%A in ("%INPUT_FILE%") do (
     set "JSON_CONTENT=%%A"
 )
 
-REM --- РАЗБОР JSON ---
-REM Удаляем шапку {"recentRoots":[ и хвост ]}
+REM --- €‡Ž JSON ---
+REM “¤ «ï¥¬ è ¯ªã {"recentRoots":[ ¨ å¢®áâ ]}
 set "JSON_CONTENT=!JSON_CONTENT:*recentRoots=!"
 set "JSON_CONTENT=!JSON_CONTENT:*[=!"
 set "JSON_CONTENT=!JSON_CONTENT:]}=!"
 set "JSON_CONTENT=!JSON_CONTENT:"=!"
 
-REM Теперь JSON_CONTENT: file:///c%3A/Path1,file:///c%3A/Path2,...
+REM ’¥¯¥àì JSON_CONTENT: file:///c%3A/Path1,file:///c%3A/Path2,...
 
 :ParseLoopWS
 for /f "tokens=1* delims=," %%a in ("!JSON_CONTENT!") do (
     set "RAW_PATH=%%a"
     set "JSON_CONTENT=%%b"
 
-    REM --- ДЕКОДИРОВАНИЕ URI -> WINDOWS-ПУТЬ ---
+    REM --- „…ŠŽ„ˆŽ‚€ˆ… URI -> WINDOWS-“’œ ---
     set "WIN_PATH=!RAW_PATH:file:///=!"
     set "WIN_PATH=!WIN_PATH:%%3A=:!"
     set "WIN_PATH=!WIN_PATH:%%20= !"
     set "WIN_PATH=!WIN_PATH:/=\!"
 
-    echo    - Обработка: !WIN_PATH!
+    echo    - Ž¡à ¡®âª : !WIN_PATH!
 
-    REM --- Проверяем: папка или файл? ---
+    REM --- à®¢¥àï¥¬: ¯ ¯ª  ¨«¨ ä ©«? ---
     if exist "!WIN_PATH!\*" (
-        REM ===== ЭТО ПАПКА (проект) =====
+        REM ===== ’Ž €Š€ (¯à®¥ªâ) =====
         for %%F in ("!WIN_PATH!") do set "PROJECT_NAME=%%~nxF"
         set "TARGET_DIR=!WORKSPACE_DIR!\!PROJECT_NAME!"
         if not exist "!TARGET_DIR!" mkdir "!TARGET_DIR!"
 
-        echo      [ПАПКА] Копирование содержимого в "!TARGET_DIR!"
+        echo      [€Š€] Š®¯¨à®¢ ­¨¥ á®¤¥à¦¨¬®£® ¢ "!TARGET_DIR!"
         xcopy "!WIN_PATH!" "!TARGET_DIR!\" /e /i /y /q >nul
         if errorlevel 1 (
-            echo      - ОШИБКА при копировании папки
+            echo      - Ž˜ˆŠ€ ¯à¨ ª®¯¨à®¢ ­¨¨ ¯ ¯ª¨
+            call :LogMsg "ERROR" "Žè¨¡ª  ª®¯¨à®¢ ­¨ï ¯ ¯ª¨ workspace: !WIN_PATH!"
         ) else (
-            echo      - Папка скопирована успешно
+            echo      -  ¯ª  áª®¯¨à®¢ ­  ãá¯¥è­®
         )
 
     ) else if exist "!WIN_PATH!" (
-        REM ===== ЭТО ФАЙЛ =====
+        REM ===== ’Ž ”€‰‹ =====
         for %%F in ("!WIN_PATH!") do set "FILENAME=%%~nxF"
         set "TARGET_FILE=!WORKSPACE_DIR!\!FILENAME!"
 
-        REM Проверяем, существует ли уже файл с таким именем
+        REM à®¢¥àï¥¬, áãé¥áâ¢ã¥â «¨ ã¦¥ ä ©« á â ª¨¬ ¨¬¥­¥¬
         if exist "!TARGET_FILE!" (
-            REM Если существует, добавляем числовой суффикс
+            REM …á«¨ áãé¥áâ¢ã¥â, ¤®¡ ¢«ï¥¬ ç¨á«®¢®© áãää¨ªá
             set "base=!FILENAME:~0,-4!"
             set "ext=!FILENAME:~-4!"
             if "!ext!"==".!ext!" (
-                rem с расширением
+                rem á à áè¨à¥­¨¥¬
                 set "counter=1"
                 :loop_file
                 if exist "!WORKSPACE_DIR!\!base!_!counter!!ext!" (
@@ -340,7 +428,7 @@ for /f "tokens=1* delims=," %%a in ("!JSON_CONTENT!") do (
                 )
                 set "TARGET_FILE=!WORKSPACE_DIR!\!base!_!counter!!ext!"
             ) else (
-                rem без расширения
+                rem ¡¥§ à áè¨à¥­¨ï
                 set "counter=1"
                 :loop_file_noext
                 if exist "!WORKSPACE_DIR!\!base!_!counter!" (
@@ -351,112 +439,122 @@ for /f "tokens=1* delims=," %%a in ("!JSON_CONTENT!") do (
             )
         )
 
-        echo      [ФАЙЛ] Копирование в "!TARGET_FILE!"
+        echo      [”€‰‹] Š®¯¨à®¢ ­¨¥ ¢ "!TARGET_FILE!"
         copy "!WIN_PATH!" "!TARGET_FILE!" /y >nul
         if errorlevel 1 (
-            echo      - ОШИБКА при копировании файла
+            echo      - Ž˜ˆŠ€ ¯à¨ ª®¯¨à®¢ ­¨¨ ä ©« 
+            call :LogMsg "ERROR" "Žè¨¡ª  ª®¯¨à®¢ ­¨ï ä ©«  workspace: !WIN_PATH!"
         ) else (
-            echo      - Файл скопирован успешно
+            echo      - ” ©« áª®¯¨à®¢ ­ ãá¯¥è­®
         )
 
     ) else (
-        echo      [НЕ НАЙДЕНО] !WIN_PATH!
+        echo      [… €‰„…Ž] !WIN_PATH!
+        call :LogMsg "WARNING" "ãâì workspace ­¥ ­ ©¤¥­ ­  ¤¨áª¥: !WIN_PATH!"
     )
 
     if defined JSON_CONTENT goto ParseLoopWS
 )
 
-echo    - Копирование рабочих пространств завершено
+echo    - Š®¯¨à®¢ ­¨¥ à ¡®ç¨å ¯à®áâà ­áâ¢ § ¢¥àè¥­®
 
 :SkipWorkspaces
 
-echo [7/8] Сбор информации о Java...
+:Step7
+echo [7/8] ‘¡®à ¨­ä®à¬ æ¨¨ ® Java...
+call :LogMsg "INFO" "[˜€ƒ 7] à®¢¥àª  ¢¥àá¨¨ Java..."
 set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
 (
     echo ========================================
-    echo      ИНФОРМАЦИЯ О JAVA
+    echo      ˆ”ŽŒ€–ˆŸ Ž JAVA
     echo ========================================
-    echo Компьютер: %COMPUTER_NAME%
-    echo Дата сбора: %DATE% %TIME%
+    echo Š®¬¯ìîâ¥à: %COMPUTER_NAME%
+    echo „ â  á¡®à : %DATE% %TIME%
+    echo ¥¦¨¬ á¡®à : %COLLECTION_MODE%
     echo ========================================
     echo.
     java -version 2>&1
     echo.
-    echo --- Переменные окружения, связанные с Java ---
+    echo --- ¥à¥¬¥­­ë¥ ®ªàã¦¥­¨ï, á¢ï§ ­­ë¥ á Java ---
     set | findstr /i "java"
 ) > "%JAVA_REPORT%" 2>nul
-echo    - Информация о Java сохранена в java_report.txt
+echo    - ˆ­ä®à¬ æ¨ï ® Java á®åà ­¥­  ¢ java_report.txt
 
-echo [8/8] Создание сводного отчета...
+echo [8/8] ‘®§¤ ­¨¥ á¢®¤­®£® ®âç¥â ...
+call :LogMsg "INFO" "[˜€ƒ 8] ƒ¥­¥à æ¨ï á¢®¤­®£® ®âç¥â ..."
 set "SUMMARY_FILE=%COMPUTER_PATH%\summary_report.txt"
 (
     echo ====================================================
-    echo              СВОДНЫЙ ОТЧЕТ О СИСТЕМЕ
+    echo              ‘‚Ž„›‰ Ž’—…’ Ž ‘ˆ‘’…Œ…
     echo ====================================================
     echo.
-    echo Дата сбора: %DATE% %TIME%
-    echo Компьютер: %COMPUTER_NAME%
+    echo „ â  á¡®à : %DATE% %TIME%
+    echo Š®¬¯ìîâ¥à: %COMPUTER_NAME%
     echo.
     echo ====================================================
-    echo 1. АППАРАТНАЯ КОНФИГУРАЦИЯ И ОС
+    echo 1. €€€’€Ÿ ŠŽ”ˆƒ“€–ˆŸ ˆ Ž‘
     echo ====================================================
-    echo Файл: %COMPUTER_NAME%_diag.txt
-    echo Размер:
+    echo ” ©«: %COMPUTER_NAME%_diag.txt
+    echo  §¬¥à:
     if exist "%COMPUTER_PATH%\%COMPUTER_NAME%_diag.txt" (
-        for %%f in ("%COMPUTER_PATH%\%COMPUTER_NAME%_diag.txt") do echo    %%~zf байт
+        for %%f in ("%COMPUTER_PATH%\%COMPUTER_NAME%_diag.txt") do echo    %%~zf ¡ ©â
     ) else (
-        echo    Файл не создан (ошибка dxdiag)
+        echo    ” ©« ­¥ á®§¤ ­ (®è¨¡ª  dxdiag)
     )
     echo.
     echo ====================================================
-    echo 2. КОМПОНЕНТЫ 1С
+    echo 2. ŠŽŒŽ…’› 1‘
     echo ====================================================
 ) >> "%SUMMARY_FILE%"
 
-:: Добавляем содержимое installed_versions.txt в отчет
+:: „®¡ ¢«ï¥¬ á®¤¥à¦¨¬®¥ installed_versions.txt ¢ ®âç¥â
 if exist "%COMPONENTS_FILE%" (
     type "%COMPONENTS_FILE%" >> "%SUMMARY_FILE%"
 ) else (
-    echo Файл не создан >> "%SUMMARY_FILE%"
+    echo ” ©« ­¥ á®§¤ ­ >> "%SUMMARY_FILE%"
 )
 
 (
     echo.
     echo ====================================================
-    echo 3. ПРОЦЕССЫ
+    echo 3. Ž–…‘‘›
     echo ====================================================
 ) >> "%SUMMARY_FILE%"
 
-:: Добавляем краткую статистику из processes.txt
+:: „®¡ ¢«ï¥¬ ªà âªãî áâ â¨áâ¨ªã ¨§ processes.txt
 if exist "%PROCESSES_FILE%" (
-    echo Файл с процессами: processes.txt (CSV формат) >> "%SUMMARY_FILE%"
-    echo Размер файла: >> "%SUMMARY_FILE%"
-    for %%f in ("%PROCESSES_FILE%") do echo    %%~zf байт >> "%SUMMARY_FILE%"
+    echo ” ©« á ¯à®æ¥áá ¬¨: processes.txt (CSV ä®à¬ â) >> "%SUMMARY_FILE%"
+    echo  §¬¥à ä ©« : >> "%SUMMARY_FILE%"
+    for %%f in ("%PROCESSES_FILE%") do echo    %%~zf ¡ ©â >> "%SUMMARY_FILE%"
     echo. >> "%SUMMARY_FILE%"
-    echo Первые 10 строк файла (для ознакомления): >> "%SUMMARY_FILE%"
+    echo ¥à¢ë¥ 10 áâà®ª ä ©«  (¤«ï ®§­ ª®¬«¥­¨ï): >> "%SUMMARY_FILE%"
     echo ---------------------------------------- >> "%SUMMARY_FILE%"
     type "%PROCESSES_FILE%" | findstr /n "^" | findstr /b "[1-9]: [1-9]: " 2>nul >> "%SUMMARY_FILE%"
 ) else (
-    echo Файл с процессами не создан >> "%SUMMARY_FILE%"
+    if /i "%COLLECTION_MODE%"=="full" (
+        echo ” ©« á ¯à®æ¥áá ¬¨ ­¥ á®§¤ ­ >> "%SUMMARY_FILE%"
+    ) else (
+        echo Ž“™…Ž (¥¦¨¬ Light) >> "%SUMMARY_FILE%"
+    )
 )
 
 (
     echo.
     echo ====================================================
-    echo 4. ЛОГИ
+    echo 4. ‹Žƒˆ
     echo ====================================================
 ) >> "%SUMMARY_FILE%"
 
 if exist "%LOGS_PATH%" (
-    echo Папка с логами: %LOGS_PATH% >> "%SUMMARY_FILE%"
+    echo  ¯ª  á «®£ ¬¨: %LOGS_PATH% >> "%SUMMARY_FILE%"
     echo. >> "%SUMMARY_FILE%"
-    echo Содержимое папки logs: >> "%SUMMARY_FILE%"
+    echo ‘®¤¥à¦¨¬®¥ ¯ ¯ª¨ logs: >> "%SUMMARY_FILE%"
 
-    :: Показываем структуру скопированных папок
+    :: ®ª §ë¢ ¥¬ áâàãªâãàã áª®¯¨à®¢ ­­ëå ¯ ¯®ª
     for /d %%d in ("%LOGS_PATH%\*") do (
-        echo [ПАПКА] %%~nxd >> "%SUMMARY_FILE%"
+        echo [€Š€] %%~nxd >> "%SUMMARY_FILE%"
         if exist "%%d\copied_from.txt" (
-            echo   Информация: >> "%SUMMARY_FILE%"
+            echo   ˆ­ä®à¬ æ¨ï: >> "%SUMMARY_FILE%"
             for /f "tokens=*" %%l in (%%d\copied_from.txt) do (
                 echo     %%l >> "%SUMMARY_FILE%"
             )
@@ -464,10 +562,14 @@ if exist "%LOGS_PATH%" (
         echo. >> "%SUMMARY_FILE%"
     )
 
-    :: Показываем файлы в корне logs, если есть
+    :: ®ª §ë¢ ¥¬ ä ©«ë ¢ ª®à­¥ logs, ¥á«¨ ¥áâì
     dir "%LOGS_PATH%" /b /a-d 2>nul >> "%SUMMARY_FILE%"
 ) else (
-    echo Папка с логами не создана >> "%SUMMARY_FILE%"
+    if /i "%COLLECTION_MODE%"=="full" (
+        echo  ¯ª  á «®£ ¬¨ ­¥ á®§¤ ­  >> "%SUMMARY_FILE%"
+    ) else (
+        echo Ž“™…Ž (¥¦¨¬ Light) >> "%SUMMARY_FILE%"
+    )
 )
 
 (
@@ -478,36 +580,44 @@ if exist "%LOGS_PATH%" (
 ) >> "%SUMMARY_FILE%"
 
 if exist "%DEPLOYMENT_ERRORS_PATH%" (
-    echo Папка с ошибками развертывания: %DEPLOYMENT_ERRORS_PATH% >> "%SUMMARY_FILE%"
+    echo  ¯ª  á ®è¨¡ª ¬¨ à §¢¥àâë¢ ­¨ï: %DEPLOYMENT_ERRORS_PATH% >> "%SUMMARY_FILE%"
     echo. >> "%SUMMARY_FILE%"
-    echo Содержимое папки deployment_errors: >> "%SUMMARY_FILE%"
+    echo ‘®¤¥à¦¨¬®¥ ¯ ¯ª¨ deployment_errors: >> "%SUMMARY_FILE%"
 
-    :: Показываем структуру скопированных папок
+    :: ®ª §ë¢ ¥¬ áâàãªâãàã áª®¯¨à®¢ ­­ëå ¯ ¯®ª
     for /d %%d in ("%DEPLOYMENT_ERRORS_PATH%\*") do (
-        echo [ПАПКА] %%~nxd >> "%SUMMARY_FILE%"
+        echo [€Š€] %%~nxd >> "%SUMMARY_FILE%"
         echo. >> "%SUMMARY_FILE%"
     )
 
-    :: Показываем информационные файлы, если есть
+    :: ®ª §ë¢ ¥¬ ¨­ä®à¬ æ¨®­­ë¥ ä ©«ë, ¥á«¨ ¥áâì
     dir "%DEPLOYMENT_ERRORS_PATH%\*.txt" /b 2>nul >> "%SUMMARY_FILE%"
 ) else (
-    echo Папка с ошибками развертывания не создана >> "%SUMMARY_FILE%"
+    if /i "%COLLECTION_MODE%"=="full" (
+        echo  ¯ª  á ®è¨¡ª ¬¨ à §¢¥àâë¢ ­¨ï ­¥ á®§¤ ­  >> "%SUMMARY_FILE%"
+    ) else (
+        echo Ž“™…Ž (¥¦¨¬ Light) >> "%SUMMARY_FILE%"
+    )
 )
 
 (
     echo.
     echo ====================================================
-    echo 6. РАБОЧИЕ ПРОСТРАНСТВА (WORKSPACES)
+    echo 6. €Ž—ˆ… Ž‘’€‘’‚€ (WORKSPACES)
     echo ====================================================
 ) >> "%SUMMARY_FILE%"
 
 if exist "%WORKSPACE_DIR%" (
-    echo Папка: %WORKSPACE_DIR% >> "%SUMMARY_FILE%"
+    echo  ¯ª : %WORKSPACE_DIR% >> "%SUMMARY_FILE%"
     echo. >> "%SUMMARY_FILE%"
-    echo Скопированные элементы: >> "%SUMMARY_FILE%"
+    echo ‘ª®¯¨à®¢ ­­ë¥ í«¥¬¥­âë: >> "%SUMMARY_FILE%"
     dir "%WORKSPACE_DIR%" /b 2>nul >> "%SUMMARY_FILE%"
 ) else (
-    echo Папка workspaces не создана >> "%SUMMARY_FILE%"
+    if /i "%COLLECTION_MODE%"=="full" (
+        echo  ¯ª  workspaces ­¥ á®§¤ ­  >> "%SUMMARY_FILE%"
+    ) else (
+        echo Ž“™…Ž (¥¦¨¬ Light) >> "%SUMMARY_FILE%"
+    )
 )
 
 (
@@ -518,62 +628,86 @@ if exist "%WORKSPACE_DIR%" (
 ) >> "%SUMMARY_FILE%"
 
 if exist "%JAVA_REPORT%" (
-    echo Файл: java_report.txt >> "%SUMMARY_FILE%"
-    echo Содержимое: >> "%SUMMARY_FILE%"
+    echo ” ©«: java_report.txt >> "%SUMMARY_FILE%"
+    echo ‘®¤¥à¦¨¬®¥: >> "%SUMMARY_FILE%"
     echo ---------------------------------------- >> "%SUMMARY_FILE%"
     type "%JAVA_REPORT%" >> "%SUMMARY_FILE%"
 ) else (
-    echo Файл java_report.txt не создан >> "%SUMMARY_FILE%"
+    echo ” ©« java_report.txt ­¥ á®§¤ ­ >> "%SUMMARY_FILE%"
 )
 
 (
     echo.
     echo ====================================================
-    echo Конец отчета
+    echo Š®­¥æ ®âç¥â 
     echo ====================================================
 ) >> "%SUMMARY_FILE%"
 
-:: Создаем файл с информацией о компьютерах в папке с датой
+:: ‘®§¤ ¥¬ ä ©« á ¨­ä®à¬ æ¨¥© ® ª®¬¯ìîâ¥à å ¢ ¯ ¯ª¥ á ¤ â®©
 set "COMPUTERS_LIST_FILE=%BASE_PATH%\computers_list.txt"
 
-:: Если файл не существует, создаем его с заголовком
+:: …á«¨ ä ©« ­¥ áãé¥áâ¢ã¥â, á®§¤ ¥¬ ¥£® á § £®«®¢ª®¬
 if not exist "%COMPUTERS_LIST_FILE%" (
     echo ==================================================== > "%COMPUTERS_LIST_FILE%"
-    echo       СПИСОК КОМПЬЮТЕРОВ ЗА %DATE_FOLDER% >> "%COMPUTERS_LIST_FILE%"
+    echo       ‘ˆ‘ŽŠ ŠŽŒœž’…Ž‚ ‡€ %DATE_FOLDER% >> "%COMPUTERS_LIST_FILE%"
     echo ==================================================== >> "%COMPUTERS_LIST_FILE%"
-    echo Дата сбора ^| Время ^| Имя компьютера >> "%COMPUTERS_LIST_FILE%"
+    echo „ â  á¡®à  ^| ‚à¥¬ï ^| ˆ¬ï ª®¬¯ìîâ¥à  >> "%COMPUTERS_LIST_FILE%"
     echo ==================================================== >> "%COMPUTERS_LIST_FILE%"
 )
 
-:: Добавляем запись о текущем компьютере
-echo %DATE% ^| %TIME% ^| %COMPUTER_NAME% >> "%COMPUTERS_LIST_FILE%"
+:: „®¡ ¢«ï¥¬ § ¯¨áì ® â¥ªãé¥¬ ª®¬¯ìîâ¥à¥
+echo %DATE% ^| %TIME% ^| %COMPUTER_NAME% ^| %COLLECTION_MODE% >> "%COMPUTERS_LIST_FILE%"
+
+call :LogMsg "INFO" "‘¡®à ¤ ­­ëå § ¢¥àè¥­. Žâç¥â ®¡­®¢«¥­."
 
 echo.
 echo =====================================================
-echo            СБОР ИНФОРМАЦИИ ЗАВЕРШЕН
+echo            ‘Ž ˆ”ŽŒ€–ˆˆ ‡€‚…˜…
 echo =====================================================
 echo.
-echo Данные сохранены в:
+echo „ ­­ë¥ á®åà ­¥­ë ¢:
 echo %COMPUTER_PATH%
 echo.
-echo Структура папок на устройстве %SCRIPT_DRIVE%:
-echo %DATE_FOLDER%\
-echo   +-- computers_list.txt
-echo   +-- %COMPUTER_NAME%\
-echo       +-- %COMPUTER_NAME%_diag.txt
-echo       +-- installed_versions.txt
-echo       +-- processes.txt
-echo       +-- java_report.txt
-echo       +-- summary_report.txt
-echo       +-- logs\
-echo       ^|   +-- [папка_с_самыми_свежими_логами]\
-echo       +-- deployment_errors\
-echo       ^|   +-- 1ce-installer-crash\ (если найдена)
-echo       ^|   +-- 1ce-installer-20*\ (самая свежая)
-echo       +-- workspaces\
-echo           +-- [ИмяПроекта]\      (скопированная папка проекта)
-echo           +-- [ИмяФайла]         (скопированный файл)
+echo ‘âàãªâãà  ¯ ¯®ª ­  ãáâà®©áâ¢¥ %SCRIPT_DRIVE%:
+
+if /i "%COLLECTION_MODE%"=="full" (
+    echo %DATE_FOLDER%\
+    echo   ÃÄÄ computers_list.txt
+    echo   ÀÄÄ %COMPUTER_NAME%\
+    echo       ÃÄÄ %COMPUTER_NAME%_diag.txt
+    echo       ÃÄÄ installed_versions.txt
+    echo       ÃÄÄ processes.txt
+    echo       ÃÄÄ summary_report.txt
+    echo       ÃÄÄ logs\
+    echo       ³   ÀÄÄ [¯ ¯ª _á_á ¬ë¬¨_á¢¥¦¨¬¨_«®£ ¬¨]\
+    echo       ÀÄÄ deployment_errors\
+    echo           ÃÄÄ 1ce-installer-crash\ (¥á«¨ ­ ©¤¥­ )
+    echo           ÀÄÄ 1ce-installer-20*\ (á ¬ ï á¢¥¦ ï)
+) else (
+    echo %DATE_FOLDER%\
+    echo   ÃÄÄ computers_list.txt
+    echo   ÀÄÄ %COMPUTER_NAME%\
+    echo       ÃÄÄ %COMPUTER_NAME%_diag.txt
+    echo       ÃÄÄ installed_versions.txt
+    echo       ÀÄÄ summary_report.txt
+)
+
 echo.
-echo Сводный отчет: %SUMMARY_FILE%
+echo ‘¢®¤­ë© ®âç¥â: %SUMMARY_FILE%
 echo.
-echo Список компьютеров за %DATE_FOLDER%: %COMPUTERS_LIST_FILE%
+echo ‘¯¨á®ª ª®¬¯ìîâ¥à®¢ §  %DATE_FOLDER%: %COMPUTERS_LIST_FILE%
+
+:: [„Ž€‚‹…Ž] ‚ëå®¤ ¨§ áªà¨¯â , çâ®¡ë ­¥ ¯®¯ áâì ¢ äã­ªæ¨î «®££¥à 
+pause
+exit /b
+
+:: =====================================================
+:: [„Ž€‚‹…Ž] ”“Š–ˆŸ ‹ŽƒˆŽ‚€ˆŸ
+:: =====================================================
+:LogMsg
+:: %1 - ’¨¯ (INFO, ERROR, WARNING)
+:: %2 - ‘®®¡é¥­¨¥
+if defined EXEC_LOG (
+    echo [%DATE% %TIME%] [%~1] %~2 >> "%EXEC_LOG%"
+)
+exit /b
