@@ -3,12 +3,21 @@
 
 # ====================================================================
 #  Скрипт сбора информации о системе (Linux-версия)
-#  Обновлён: пункт 6 — копирование рабочих пространств целиком
+#  Адаптирован под режимы Full/Light
 # ====================================================================
 
 # Настройка кодировки
 export LANG=ru_RU.UTF-8 2>/dev/null
 export LC_ALL=ru_RU.UTF-8 2>/dev/null
+
+# =====================================================
+# НАСТРОЙКИ СКРИПТА
+# =====================================================
+# Режим сбора информации:
+#   full  - собирать ВСЮ информацию (шаги 1-8)
+#   light - собирать только базовую информацию (шаги 1, 2, 7 и 8)
+COLLECTION_MODE="light"
+# =====================================================
 
 # ---- Определяем путь к устройству, с которого запущен скрипт ----
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -35,14 +44,27 @@ echo ""
 echo "Путь сохранения: $SCRIPT_PATH"
 echo "Дата: $DATE_FOLDER"
 echo "Компьютер: $COMPUTER_NAME"
+echo "Режим сбора: $COLLECTION_MODE"
+echo ""
+
+if [ "$COLLECTION_MODE" == "full" ]; then
+    echo "Режим FULL - будет собрана ВСЯ информация (шаги 1-8)"
+else
+    echo "Режим LIGHT - будет собрана только базовая информация (шаги 1, 2, 7 и 8)"
+fi
+
 echo ""
 echo "Создание структуры папок..."
 
 # ---- Создаём необходимые папки ----
 mkdir -p "$BASE_PATH"
 mkdir -p "$COMPUTER_PATH"
-mkdir -p "$LOGS_PATH"
-mkdir -p "$DEPLOYMENT_ERRORS_PATH"
+
+# Папки для логов создаем только в FULL режиме
+if [ "$COLLECTION_MODE" == "full" ]; then
+    mkdir -p "$LOGS_PATH"
+    mkdir -p "$DEPLOYMENT_ERRORS_PATH"
+fi
 
 # ====================================================================
 #  [1/8] Аппаратная конфигурация и ОС (замена dxdiag)
@@ -197,291 +219,304 @@ COMPONENTS_DIRS=(
 echo "   - Список компонентов сохранен в installed_versions.txt"
 
 # ====================================================================
-#  [3/8] Копирование логов 1С
+#  ПРОВЕРКА РЕЖИМА ДЛЯ ШАГОВ 3-6
 # ====================================================================
-echo "[3/8] Копирование логов 1С..."
+if [ "$COLLECTION_MODE" != "full" ]; then
+    echo ""
+    echo "-----------------------------------------------------"
+    echo "Режим \"$COLLECTION_MODE\": Шаги 3, 4, 5, 6 пропускаются."
+    echo "-----------------------------------------------------"
+else
+    # ====================================================================
+    #  [3/8] Копирование логов 1С
+    # ====================================================================
+    echo "[3/8] Копирование логов 1С..."
 
-USER_HOME="$HOME"
-LOGS_SOURCE="$USER_HOME/1c-enterprise-element/.storage/logs"
+    USER_HOME="$HOME"
+    LOGS_SOURCE="$USER_HOME/1c-enterprise-element/.storage/logs"
 
-if [ -d "$LOGS_SOURCE" ]; then
-    echo "   - Поиск папок с логами в $LOGS_SOURCE"
+    if [ -d "$LOGS_SOURCE" ]; then
+        echo "   - Поиск папок с логами в $LOGS_SOURCE"
 
-    # Находим самую свежую папку по дате модификации
-    LATEST_FOLDER=$(find "$LOGS_SOURCE" -maxdepth 1 -mindepth 1 -type d \
-        -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-
-    # Если -printf не поддерживается (не GNU find), пробуем альтернативу
-    if [ -z "$LATEST_FOLDER" ]; then
+        # Находим самую свежую папку по дате модификации
         LATEST_FOLDER=$(find "$LOGS_SOURCE" -maxdepth 1 -mindepth 1 -type d \
-            -exec stat --format='%Y %n' {} \; 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-    fi
+            -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 
-    if [ -n "$LATEST_FOLDER" ] && [ -d "$LATEST_FOLDER" ]; then
-        LATEST_FOLDER_NAME=$(basename "$LATEST_FOLDER")
-        LATEST_DATE=$(stat --format='%y' "$LATEST_FOLDER" 2>/dev/null || stat -f '%Sm' "$LATEST_FOLDER" 2>/dev/null)
+        # Если -printf не поддерживается (не GNU find), пробуем альтернативу
+        if [ -z "$LATEST_FOLDER" ]; then
+            LATEST_FOLDER=$(find "$LOGS_SOURCE" -maxdepth 1 -mindepth 1 -type d \
+                -exec stat --format='%Y %n' {} \; 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+        fi
 
-        echo "   - Найдена самая свежая папка: $LATEST_FOLDER_NAME"
-        echo "   - Дата последнего изменения: $LATEST_DATE"
-        echo "   - Копирование папки целиком..."
+        if [ -n "$LATEST_FOLDER" ] && [ -d "$LATEST_FOLDER" ]; then
+            LATEST_FOLDER_NAME=$(basename "$LATEST_FOLDER")
+            LATEST_DATE=$(stat --format='%y' "$LATEST_FOLDER" 2>/dev/null || stat -f '%Sm' "$LATEST_FOLDER" 2>/dev/null)
 
-        TARGET_FOLDER="$LOGS_PATH/$LATEST_FOLDER_NAME"
-        mkdir -p "$TARGET_FOLDER"
+            echo "   - Найдена самая свежая папка: $LATEST_FOLDER_NAME"
+            echo "   - Дата последнего изменения: $LATEST_DATE"
+            echo "   - Копирование папки целиком..."
 
-        if cp -r "$LATEST_FOLDER"/* "$TARGET_FOLDER/" 2>/dev/null; then
-            echo "   - Папка $LATEST_FOLDER_NAME успешно скопирована в $LOGS_PATH"
-            {
-                echo "Источник: $LATEST_FOLDER"
-                echo "Дата копирования: $FULL_DATETIME"
-                echo "Дата последнего изменения исходной папки: $LATEST_DATE"
-            } > "$TARGET_FOLDER/copied_from.txt"
+            TARGET_FOLDER="$LOGS_PATH/$LATEST_FOLDER_NAME"
+            mkdir -p "$TARGET_FOLDER"
+
+            if cp -r "$LATEST_FOLDER"/* "$TARGET_FOLDER/" 2>/dev/null; then
+                echo "   - Папка $LATEST_FOLDER_NAME успешно скопирована в $LOGS_PATH"
+                {
+                    echo "Источник: $LATEST_FOLDER"
+                    echo "Дата копирования: $FULL_DATETIME"
+                    echo "Дата последнего изменения исходной папки: $LATEST_DATE"
+                } > "$TARGET_FOLDER/copied_from.txt"
+            else
+                echo "   - ОШИБКА: Не удалось скопировать папку с логами"
+                echo "Ошибка копирования из $LATEST_FOLDER" > "$LOGS_PATH/copy_error.txt"
+            fi
         else
-            echo "   - ОШИБКА: Не удалось скопировать папку с логами"
-            echo "Ошибка копирования из $LATEST_FOLDER" > "$LOGS_PATH/copy_error.txt"
+            echo "   - Не найдены папки с логами в $LOGS_SOURCE"
+            echo "Папки с логами не найдены" > "$LOGS_PATH/no_logs_found.txt"
         fi
     else
-        echo "   - Не найдены папки с логами в $LOGS_SOURCE"
-        echo "Папки с логами не найдены" > "$LOGS_PATH/no_logs_found.txt"
+        echo "   - Папка с логами не существует: $LOGS_SOURCE"
+        echo "Папка $LOGS_SOURCE не существует" > "$LOGS_PATH/source_not_exists.txt"
     fi
-else
-    echo "   - Папка с логами не существует: $LOGS_SOURCE"
-    echo "Папка $LOGS_SOURCE не существует" > "$LOGS_PATH/source_not_exists.txt"
-fi
 
-# ====================================================================
-#  [4/8] Копирование deployment_errors (папки 1ce-installer из /tmp)
-# ====================================================================
-echo "[4/8] Копирование deployment_errors (папки 1ce-installer из /tmp)..."
+    # ====================================================================
+    #  [4/8] Копирование deployment_errors (папки 1ce-installer из /tmp)
+    # ====================================================================
+    echo "[4/8] Копирование deployment_errors (папки 1ce-installer из /tmp)..."
 
-TEMP_PATH="${TMPDIR:-/tmp}"
+    TEMP_PATH="${TMPDIR:-/tmp}"
 
-# Копирование папки 1ce-installer-crash
-if [ -d "$TEMP_PATH/1ce-installer-crash" ]; then
-    echo "   - Найдена папка 1ce-installer-crash"
-    TARGET_CRASH="$DEPLOYMENT_ERRORS_PATH/1ce-installer-crash"
-    mkdir -p "$TARGET_CRASH"
-    cp -r "$TEMP_PATH/1ce-installer-crash"/* "$TARGET_CRASH/" 2>/dev/null
-    echo "   - Папка 1ce-installer-crash скопирована"
-else
-    echo "   - Папка 1ce-installer-crash не найдена в $TEMP_PATH"
-    echo "Папка 1ce-installer-crash не найдена" > "$DEPLOYMENT_ERRORS_PATH/crash_not_found.txt"
-fi
-
-# Поиск и копирование самой свежей папки 1ce-installer-20*
-echo "   - Поиск папок 1ce-installer-20* в $TEMP_PATH"
-
-LATEST_INSTALLER_FOLDER=$(find "$TEMP_PATH" -maxdepth 1 -mindepth 1 -type d \
-    -name '1ce-installer-20*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
-
-# Альтернатива без -printf
-if [ -z "$LATEST_INSTALLER_FOLDER" ]; then
-    LATEST_INSTALLER_FOLDER=$(find "$TEMP_PATH" -maxdepth 1 -mindepth 1 -type d \
-        -name '1ce-installer-20*' -exec stat --format='%Y %n' {} \; 2>/dev/null \
-        | sort -rn | head -1 | cut -d' ' -f2-)
-fi
-
-if [ -n "$LATEST_INSTALLER_FOLDER" ] && [ -d "$LATEST_INSTALLER_FOLDER" ]; then
-    LATEST_INSTALLER_NAME=$(basename "$LATEST_INSTALLER_FOLDER")
-    LATEST_INSTALLER_DATE=$(stat --format='%y' "$LATEST_INSTALLER_FOLDER" 2>/dev/null)
-
-    echo "   - Найдена самая свежая папка: $LATEST_INSTALLER_NAME"
-    echo "   - Дата последнего изменения: $LATEST_INSTALLER_DATE"
-
-    TARGET_INSTALLER="$DEPLOYMENT_ERRORS_PATH/$LATEST_INSTALLER_NAME"
-    mkdir -p "$TARGET_INSTALLER"
-
-    if cp -r "$LATEST_INSTALLER_FOLDER"/* "$TARGET_INSTALLER/" 2>/dev/null; then
-        echo "   - Папка $LATEST_INSTALLER_NAME успешно скопирована"
+    # Копирование папки 1ce-installer-crash
+    if [ -d "$TEMP_PATH/1ce-installer-crash" ]; then
+        echo "   - Найдена папка 1ce-installer-crash"
+        TARGET_CRASH="$DEPLOYMENT_ERRORS_PATH/1ce-installer-crash"
+        mkdir -p "$TARGET_CRASH"
+        cp -r "$TEMP_PATH/1ce-installer-crash"/* "$TARGET_CRASH/" 2>/dev/null
+        echo "   - Папка 1ce-installer-crash скопирована"
     else
-        echo "   - ОШИБКА: Не удалось скопировать папку $LATEST_INSTALLER_NAME"
+        echo "   - Папка 1ce-installer-crash не найдена в $TEMP_PATH"
+        echo "Папка 1ce-installer-crash не найдена" > "$DEPLOYMENT_ERRORS_PATH/crash_not_found.txt"
     fi
-else
-    echo "   - Папки 1ce-installer-20* не найдены в $TEMP_PATH"
-    echo "Папки 1ce-installer-20* не найдены" > "$DEPLOYMENT_ERRORS_PATH/installer_not_found.txt"
-fi
 
-# ====================================================================
-#  [5/8] Сбор информации о запущенных процессах
-# ====================================================================
-echo "[5/8] Сбор информации о запущенных процессах..."
+    # Поиск и копирование самой свежей папки 1ce-installer-20*
+    echo "   - Поиск папок 1ce-installer-20* в $TEMP_PATH"
 
-PROCESSES_FILE="$COMPUTER_PATH/processes.txt"
+    LATEST_INSTALLER_FOLDER=$(find "$TEMP_PATH" -maxdepth 1 -mindepth 1 -type d \
+        -name '1ce-installer-20*' -printf '%T@ %p\n' 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
 
-{
-    echo "===================================================="
-    echo "         ЗАПУЩЕННЫЕ ПРОЦЕССЫ"
-    echo "===================================================="
-    echo "Компьютер: $COMPUTER_NAME"
-    echo "Дата и время сбора: $FULL_DATETIME"
-    echo "===================================================="
-    echo ""
-    echo "--- Полный список процессов (ps aux) ---"
-    echo ""
-    ps aux 2>/dev/null
-    echo ""
-    echo "===================================================="
-    echo "         ИНФОРМАЦИЯ О СИСТЕМЕ"
-    echo "===================================================="
-    echo ""
+    # Альтернатива без -printf
+    if [ -z "$LATEST_INSTALLER_FOLDER" ]; then
+        LATEST_INSTALLER_FOLDER=$(find "$TEMP_PATH" -maxdepth 1 -mindepth 1 -type d \
+            -name '1ce-installer-20*' -exec stat --format='%Y %n' {} \; 2>/dev/null \
+            | sort -rn | head -1 | cut -d' ' -f2-)
+    fi
 
-    echo "--- Память ---"
-    free -h 2>/dev/null
-    echo ""
+    if [ -n "$LATEST_INSTALLER_FOLDER" ] && [ -d "$LATEST_INSTALLER_FOLDER" ]; then
+        LATEST_INSTALLER_NAME=$(basename "$LATEST_INSTALLER_FOLDER")
+        LATEST_INSTALLER_DATE=$(stat --format='%y' "$LATEST_INSTALLER_FOLDER" 2>/dev/null)
 
-    echo "--- Время работы ---"
-    uptime 2>/dev/null
-    echo ""
+        echo "   - Найдена самая свежая папка: $LATEST_INSTALLER_NAME"
+        echo "   - Дата последнего изменения: $LATEST_INSTALLER_DATE"
 
-    echo "--- Версия ОС ---"
-    uname -a 2>/dev/null
-    echo ""
+        TARGET_INSTALLER="$DEPLOYMENT_ERRORS_PATH/$LATEST_INSTALLER_NAME"
+        mkdir -p "$TARGET_INSTALLER"
 
-    TOTAL_PROCS=$(ps aux 2>/dev/null | tail -n +2 | wc -l)
-    echo "Общее количество запущенных процессов: $TOTAL_PROCS"
+        if cp -r "$LATEST_INSTALLER_FOLDER"/* "$TARGET_INSTALLER/" 2>/dev/null; then
+            echo "   - Папка $LATEST_INSTALLER_NAME успешно скопирована"
+        else
+            echo "   - ОШИБКА: Не удалось скопировать папку $LATEST_INSTALLER_NAME"
+        fi
+    else
+        echo "   - Папки 1ce-installer-20* не найдены в $TEMP_PATH"
+        echo "Папки 1ce-installer-20* не найдены" > "$DEPLOYMENT_ERRORS_PATH/installer_not_found.txt"
+    fi
 
-} > "$PROCESSES_FILE"
+    # ====================================================================
+    #  [5/8] Сбор информации о запущенных процессах
+    # ====================================================================
+    echo "[5/8] Сбор информации о запущенных процессах..."
 
-# Дополнительно: CSV-формат для совместимости
-PROCESSES_CSV="$COMPUTER_PATH/processes.csv"
-{
-    echo "\"USER\",\"PID\",\"%CPU\",\"%MEM\",\"VSZ\",\"RSS\",\"TTY\",\"STAT\",\"START\",\"TIME\",\"COMMAND\""
-    ps aux --no-headers 2>/dev/null | awk '{
-        cmd = "";
-        for(i=11; i<=NF; i++) cmd = cmd (i>11?" ":"") $i;
-        printf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n",
-            $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,cmd
-    }'
-} > "$PROCESSES_CSV" 2>/dev/null
+    PROCESSES_FILE="$COMPUTER_PATH/processes.txt"
 
-echo "   - Информация о процессах сохранена в processes.txt и processes.csv"
+    {
+        echo "===================================================="
+        echo "         ЗАПУЩЕННЫЕ ПРОЦЕССЫ"
+        echo "===================================================="
+        echo "Компьютер: $COMPUTER_NAME"
+        echo "Дата и время сбора: $FULL_DATETIME"
+        echo "===================================================="
+        echo ""
+        echo "--- Полный список процессов (ps aux) ---"
+        echo ""
+        ps aux 2>/dev/null
+        echo ""
+        echo "===================================================="
+        echo "         ИНФОРМАЦИЯ О СИСТЕМЕ"
+        echo "===================================================="
+        echo ""
 
-# ====================================================================
-#  [6/8] Копирование рабочих пространств (recentworkspace)
-# ====================================================================
-echo "[6/8] Копирование рабочих пространств (recentworkspace)..."
+        echo "--- Память ---"
+        free -h 2>/dev/null
+        echo ""
 
-INPUT_FILE="$HOME/1c-enterprise-element/.storage/recentworkspace.json"
-WORKSPACE_DIR="$COMPUTER_PATH/workspaces"
-mkdir -p "$WORKSPACE_DIR"
+        echo "--- Время работы ---"
+        uptime 2>/dev/null
+        echo ""
 
-echo "   - Поиск конфига: $INPUT_FILE"
+        echo "--- Версия ОС ---"
+        uname -a 2>/dev/null
+        echo ""
 
-if [ ! -f "$INPUT_FILE" ]; then
-    echo "   - [ОШИБКА] Файл recentworkspace.json не найден!"
-    echo "Файл recentworkspace.json не найден" > "$WORKSPACE_DIR/not_found.txt"
-else
-    # ---- Разбор JSON ----
-    JSON_CONTENT=$(cat "$INPUT_FILE" 2>/dev/null)
+        TOTAL_PROCS=$(ps aux 2>/dev/null | tail -n +2 | wc -l)
+        echo "Общее количество запущенных процессов: $TOTAL_PROCS"
 
-    # Пробуем использовать jq, если доступен
-    if command -v jq &>/dev/null; then
-        PATHS_LIST=$(jq -r '.recentRoots[]' "$INPUT_FILE" 2>/dev/null)
-    elif command -v python3 &>/dev/null; then
-        PATHS_LIST=$(python3 -c "
+    } > "$PROCESSES_FILE"
+
+    # Дополнительно: CSV-формат для совместимости
+    PROCESSES_CSV="$COMPUTER_PATH/processes.csv"
+    {
+        echo "\"USER\",\"PID\",\"%CPU\",\"%MEM\",\"VSZ\",\"RSS\",\"TTY\",\"STAT\",\"START\",\"TIME\",\"COMMAND\""
+        ps aux --no-headers 2>/dev/null | awk '{
+            cmd = "";
+            for(i=11; i<=NF; i++) cmd = cmd (i>11?" ":"") $i;
+            printf "\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\",\"%s\"\n",
+                $1,$2,$3,$4,$5,$6,$7,$8,$9,$10,cmd
+        }'
+    } > "$PROCESSES_CSV" 2>/dev/null
+
+    echo "   - Информация о процессах сохранена в processes.txt и processes.csv"
+
+    # ====================================================================
+    #  [6/8] Копирование рабочих пространств (recentworkspace)
+    # ====================================================================
+    echo "[6/8] Копирование рабочих пространств (recentworkspace)..."
+
+    INPUT_FILE="$HOME/1c-enterprise-element/.storage/recentworkspace.json"
+    WORKSPACE_DIR="$COMPUTER_PATH/workspaces"
+    mkdir -p "$WORKSPACE_DIR"
+
+    echo "   - Поиск конфига: $INPUT_FILE"
+
+    if [ ! -f "$INPUT_FILE" ]; then
+        echo "   - [ОШИБКА] Файл recentworkspace.json не найден!"
+        echo "Файл recentworkspace.json не найден" > "$WORKSPACE_DIR/not_found.txt"
+    else
+        # ---- Разбор JSON ----
+        JSON_CONTENT=$(cat "$INPUT_FILE" 2>/dev/null)
+
+        # Пробуем использовать jq, если доступен
+        if command -v jq &>/dev/null; then
+            PATHS_LIST=$(jq -r '.recentRoots[]' "$INPUT_FILE" 2>/dev/null)
+        elif command -v python3 &>/dev/null; then
+            PATHS_LIST=$(python3 -c "
 import json, sys
 with open('$INPUT_FILE', 'r') as f:
     data = json.load(f)
 for uri in data.get('recentRoots', []):
     print(uri)
 " 2>/dev/null)
-    else
-        # Ручной разбор без внешних инструментов
-        PATHS_LIST=$(echo "$JSON_CONTENT" \
-            | sed 's/.*"recentRoots":\[//;s/\].*//' \
-            | tr ',' '\n' \
-            | sed 's/^"//;s/"$//' \
-            | sed 's/^ *//;s/ *$//')
-    fi
+        else
+            # Ручной разбор без внешних инструментов
+            PATHS_LIST=$(echo "$JSON_CONTENT" \
+                | sed 's/.*"recentRoots":\[//;s/\].*//' \
+                | tr ',' '\n' \
+                | sed 's/^"//;s/"$//' \
+                | sed 's/^ *//;s/ *$//')
+        fi
 
-    if [ -z "$PATHS_LIST" ]; then
-        echo "   - Не удалось извлечь пути из recentworkspace.json"
-        echo "Не удалось разобрать JSON" > "$WORKSPACE_DIR/parse_error.txt"
-    else
-        # Функция декодирования URI
-        decode_uri() {
-            local uri="$1"
-            # Убираем file:///
-            local path="${uri#file:///}"
-            # Для Linux пути: file:///home/... → /home/...
-            # Проверяем, начинается ли с /
-            if [[ "$path" != /* ]]; then
-                path="/$path"
-            fi
-            # Декодируем URL-кодированные символы
-            if command -v python3 &>/dev/null; then
-                path=$(python3 -c "import urllib.parse; print(urllib.parse.unquote('$path'))" 2>/dev/null)
-            else
-                # Ручное декодирование частых случаев
-                path=$(echo "$path" | sed 's/%20/ /g; s/%3A/:/g; s/%23/#/g; s/%25/%/g; s/%2F/\//g')
-            fi
-            echo "$path"
-        }
-
-        # Обрабатываем каждый путь
-        while IFS= read -r RAW_PATH; do
-            [ -z "$RAW_PATH" ] && continue
-
-            WIN_PATH=$(decode_uri "$RAW_PATH")
-            echo "   - Обработка: $WIN_PATH"
-
-            if [ -d "$WIN_PATH" ]; then
-                # ===== ЭТО ПАПКА (проект) =====
-                PROJECT_NAME=$(basename "$WIN_PATH")
-                TARGET_DIR="$WORKSPACE_DIR/$PROJECT_NAME"
-                mkdir -p "$TARGET_DIR"
-
-                echo "     [ПАПКА] Копирование содержимого в $TARGET_DIR"
-                # Копируем всё содержимое папки рекурсивно
-                cp -r "$WIN_PATH"/* "$TARGET_DIR/" 2>/dev/null
-                if [ $? -eq 0 ]; then
-                    echo "     - Папка скопирована успешно"
-                else
-                    echo "     - ОШИБКА при копировании папки"
+        if [ -z "$PATHS_LIST" ]; then
+            echo "   - Не удалось извлечь пути из recentworkspace.json"
+            echo "Не удалось разобрать JSON" > "$WORKSPACE_DIR/parse_error.txt"
+        else
+            # Функция декодирования URI
+            decode_uri() {
+                local uri="$1"
+                # Убираем file:///
+                local path="${uri#file:///}"
+                # Для Linux пути: file:///home/... → /home/...
+                # Проверяем, начинается ли с /
+                if [[ "$path" != /* ]]; then
+                    path="/$path"
                 fi
+                # Декодируем URL-кодированные символы
+                if command -v python3 &>/dev/null; then
+                    path=$(python3 -c "import urllib.parse; print(urllib.parse.unquote('$path'))" 2>/dev/null)
+                else
+                    # Ручное декодирование частых случаев
+                    path=$(echo "$path" | sed 's/%20/ /g; s/%3A/:/g; s/%23/#/g; s/%25/%/g; s/%2F/\//g')
+                fi
+                echo "$path"
+            }
 
-            elif [ -f "$WIN_PATH" ]; then
-                # ===== ЭТО ФАЙЛ =====
-                FILENAME=$(basename "$WIN_PATH")
-                TARGET_FILE="$WORKSPACE_DIR/$FILENAME"
+            # Обрабатываем каждый путь
+            while IFS= read -r RAW_PATH; do
+                [ -z "$RAW_PATH" ] && continue
 
-                # Проверяем, существует ли уже файл с таким именем
-                if [ -e "$TARGET_FILE" ]; then
-                    # Если существует, добавляем числовой суффикс
-                    base="${FILENAME%.*}"
-                    ext="${FILENAME##*.}"
-                    if [ "$base" = "$FILENAME" ]; then
-                        # нет расширения
-                        counter=1
-                        while [ -e "$WORKSPACE_DIR/${base}_$counter" ]; do
-                            ((counter++))
-                        done
-                        TARGET_FILE="$WORKSPACE_DIR/${base}_$counter"
+                WIN_PATH=$(decode_uri "$RAW_PATH")
+                echo "   - Обработка: $WIN_PATH"
+
+                if [ -d "$WIN_PATH" ]; then
+                    # ===== ЭТО ПАПКА (проект) =====
+                    PROJECT_NAME=$(basename "$WIN_PATH")
+                    TARGET_DIR="$WORKSPACE_DIR/$PROJECT_NAME"
+                    mkdir -p "$TARGET_DIR"
+
+                    echo "     [ПАПКА] Копирование содержимого в $TARGET_DIR"
+                    # Копируем всё содержимое папки рекурсивно
+                    cp -r "$WIN_PATH"/* "$TARGET_DIR/" 2>/dev/null
+                    if [ $? -eq 0 ]; then
+                        echo "     - Папка скопирована успешно"
                     else
-                        counter=1
-                        while [ -e "$WORKSPACE_DIR/${base}_$counter.$ext" ]; do
-                            ((counter++))
-                        done
-                        TARGET_FILE="$WORKSPACE_DIR/${base}_$counter.$ext"
+                        echo "     - ОШИБКА при копировании папки"
                     fi
-                fi
 
-                echo "     [ФАЙЛ] Копирование в $TARGET_FILE"
-                cp "$WIN_PATH" "$TARGET_FILE" 2>/dev/null
-                if [ $? -eq 0 ]; then
-                    echo "     - Файл скопирован успешно"
+                elif [ -f "$WIN_PATH" ]; then
+                    # ===== ЭТО ФАЙЛ =====
+                    FILENAME=$(basename "$WIN_PATH")
+                    TARGET_FILE="$WORKSPACE_DIR/$FILENAME"
+
+                    # Проверяем, существует ли уже файл с таким именем
+                    if [ -e "$TARGET_FILE" ]; then
+                        # Если существует, добавляем числовой суффикс
+                        base="${FILENAME%.*}"
+                        ext="${FILENAME##*.}"
+                        if [ "$base" = "$FILENAME" ]; then
+                            # нет расширения
+                            counter=1
+                            while [ -e "$WORKSPACE_DIR/${base}_$counter" ]; do
+                                ((counter++))
+                            done
+                            TARGET_FILE="$WORKSPACE_DIR/${base}_$counter"
+                        else
+                            counter=1
+                            while [ -e "$WORKSPACE_DIR/${base}_$counter.$ext" ]; do
+                                ((counter++))
+                            done
+                            TARGET_FILE="$WORKSPACE_DIR/${base}_$counter.$ext"
+                        fi
+                    fi
+
+                    echo "     [ФАЙЛ] Копирование в $TARGET_FILE"
+                    cp "$WIN_PATH" "$TARGET_FILE" 2>/dev/null
+                    if [ $? -eq 0 ]; then
+                        echo "     - Файл скопирован успешно"
+                    else
+                        echo "     - ОШИБКА при копировании файла"
+                    fi
+
                 else
-                    echo "     - ОШИБКА при копировании файла"
+                    echo "     [НЕ НАЙДЕНО] $WIN_PATH"
                 fi
 
-            else
-                echo "     [НЕ НАЙДЕНО] $WIN_PATH"
-            fi
+            done <<< "$PATHS_LIST"
+        fi
 
-        done <<< "$PATHS_LIST"
+        echo "   - Копирование рабочих пространств завершено"
     fi
-
-    echo "   - Копирование рабочих пространств завершено"
 fi
+# ====================================================================
+#  КОНЕЦ БЛОКА УСЛОВНОГО ВЫПОЛНЕНИЯ
+# ====================================================================
 
 # ====================================================================
 #  [7/8] Сбор информации о Java
@@ -495,6 +530,7 @@ JAVA_REPORT="$COMPUTER_PATH/java_report.txt"
     echo "========================================"
     echo "Компьютер: $COMPUTER_NAME"
     echo "Дата сбора: $FULL_DATETIME"
+    echo "Режим сбора: $COLLECTION_MODE"
     echo "========================================"
     echo ""
 
@@ -564,7 +600,11 @@ SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
         echo "----------------------------------------"
         head -15 "$PROCESSES_FILE"
     else
-        echo "Файл с процессами не создан"
+        if [ "$COLLECTION_MODE" == "full" ]; then
+             echo "Файл с процессами не создан"
+        else
+             echo "ПРОПУЩЕНО (Режим Light)"
+        fi
     fi
 
     echo ""
@@ -592,7 +632,11 @@ SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
 
         find "$LOGS_PATH" -maxdepth 1 -type f -exec basename {} \; 2>/dev/null
     else
-        echo "Папка с логами не создана"
+        if [ "$COLLECTION_MODE" == "full" ]; then
+             echo "Папка с логами не создана"
+        else
+             echo "ПРОПУЩЕНО (Режим Light)"
+        fi
     fi
 
     echo ""
@@ -613,7 +657,11 @@ SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
 
         find "$DEPLOYMENT_ERRORS_PATH" -maxdepth 1 -name '*.txt' -exec basename {} \; 2>/dev/null
     else
-        echo "Папка с ошибками развертывания не создана"
+        if [ "$COLLECTION_MODE" == "full" ]; then
+             echo "Папка с ошибками развертывания не создана"
+        else
+             echo "ПРОПУЩЕНО (Режим Light)"
+        fi
     fi
 
     echo ""
@@ -627,7 +675,11 @@ SUMMARY_FILE="$COMPUTER_PATH/summary_report.txt"
         echo "Скопированные элементы:"
         ls -1 "$WORKSPACE_DIR" 2>/dev/null
     else
-        echo "Папка workspaces не создана"
+        if [ "$COLLECTION_MODE" == "full" ]; then
+             echo "Папка workspaces не создана"
+        else
+             echo "ПРОПУЩЕНО (Режим Light)"
+        fi
     fi
 
     echo ""
@@ -664,7 +716,7 @@ if [ ! -f "$COMPUTERS_LIST_FILE" ]; then
     } > "$COMPUTERS_LIST_FILE"
 fi
 
-echo "$CURRENT_DATE | $CURRENT_TIME | $COMPUTER_NAME" >> "$COMPUTERS_LIST_FILE"
+echo "$CURRENT_DATE | $CURRENT_TIME | $COMPUTER_NAME | $COLLECTION_MODE" >> "$COMPUTERS_LIST_FILE"
 
 # ====================================================================
 #  ИТОГОВЫЙ ВЫВОД
@@ -678,23 +730,30 @@ echo "Данные сохранены в:"
 echo "$COMPUTER_PATH"
 echo ""
 echo "Структура папок:"
-echo "$DATE_FOLDER/"
-echo "  +-- computers_list.txt"
-echo "  +-- $COMPUTER_NAME/"
-echo "      +-- ${COMPUTER_NAME}_diag.txt"
-echo "      +-- installed_versions.txt"
-echo "      +-- processes.txt"
-echo "      +-- processes.csv"
-echo "      +-- java_report.txt"
-echo "      +-- summary_report.txt"
-echo "      +-- logs/"
-echo "      |   +-- [папка_с_самыми_свежими_логами]/"
-echo "      +-- deployment_errors/"
-echo "      |   +-- 1ce-installer-crash/ (если найдена)"
-echo "      |   +-- 1ce-installer-20*/ (самая свежая)"
-echo "      +-- workspaces/"
-echo "          +-- [ИмяПроекта]/      (скопированная папка проекта)"
-echo "          +-- [ИмяФайла]         (скопированный файл)"
+
+if [ "$COLLECTION_MODE" == "full" ]; then
+    echo "$DATE_FOLDER/"
+    echo "  +-- computers_list.txt"
+    echo "  +-- $COMPUTER_NAME/"
+    echo "      +-- ${COMPUTER_NAME}_diag.txt"
+    echo "      +-- installed_versions.txt"
+    echo "      +-- processes.txt"
+    echo "      +-- summary_report.txt"
+    echo "      +-- logs/"
+    echo "      |   +-- [папка_с_самыми_свежими_логами]/"
+    echo "      +-- deployment_errors/"
+    echo "      |   +-- 1ce-installer-crash/ (если найдена)"
+    echo "      |   +-- 1ce-installer-20*/ (самая свежая)"
+    echo "      +-- workspaces/"
+else
+    echo "$DATE_FOLDER/"
+    echo "  +-- computers_list.txt"
+    echo "  +-- $COMPUTER_NAME/"
+    echo "      +-- ${COMPUTER_NAME}_diag.txt"
+    echo "      +-- installed_versions.txt"
+    echo "      +-- summary_report.txt"
+fi
+
 echo ""
 echo "Сводный отчёт: $SUMMARY_FILE"
 echo "Список компьютеров за $DATE_FOLDER: $COMPUTERS_LIST_FILE"
