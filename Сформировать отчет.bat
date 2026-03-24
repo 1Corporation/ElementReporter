@@ -1,6 +1,15 @@
 @echo off
-chcp 1251 >nul
+chcp 866 >nul
 setlocal enabledelayedexpansion
+
+:: =====================================================
+:: НАСТРОЙКИ СКРИПТА
+:: =====================================================
+:: Режим сбора информации:
+::   full  - собирать ВСЮ информацию (шаги 1-8)
+::   light - собирать только базовую информацию (шаги 1, 2, 7 и 8)
+set "COLLECTION_MODE=light"
+:: =====================================================
 
 :: Определяем путь к устройству, с которого запущен скрипт
 set "SCRIPT_DRIVE=%~d0"
@@ -32,14 +41,27 @@ echo Скрипт запущен с: %SCRIPT_DRIVE%
 echo Путь сохранения: %SCRIPT_PATH%
 echo Дата: %DATE_FOLDER%
 echo Компьютер: %COMPUTER_NAME%
+echo Режим сбора: %COLLECTION_MODE%
+
+
+if /i "%COLLECTION_MODE%"=="full" (
+    echo Режим FULL - будет собрана ВСЯ информация (шаги 1-8)
+) else (
+    echo Режим LIGHT - будет собрана только базовая информация (шаги 1, 2, 7 и 8)
+)
+
 echo.
 echo Создание структуры папок...
 
 :: Создаем необходимые папки
 if not exist "%BASE_PATH%" mkdir "%BASE_PATH%"
 if not exist "%COMPUTER_PATH%" mkdir "%COMPUTER_PATH%"
-if not exist "%LOGS_PATH%" mkdir "%LOGS_PATH%"
-if not exist "%DEPLOYMENT_ERRORS_PATH%" mkdir "%DEPLOYMENT_ERRORS_PATH%"
+
+:: Папки логов создаем только в FULL режиме, чтобы не мусорить пустыми папками в LIGHT
+if /i "%COLLECTION_MODE%"=="full" (
+    if not exist "%LOGS_PATH%" mkdir "%LOGS_PATH%"
+    if not exist "%DEPLOYMENT_ERRORS_PATH%" mkdir "%DEPLOYMENT_ERRORS_PATH%"
+)
 
 echo [1/8] Сбор информации об аппаратной конфигурации и ОС...
 :: Запускаем dxdiag и сохраняем результат
@@ -66,6 +88,18 @@ if exist "C:\Program Files\1C\1CE\components" (
 )
 echo    - Список компонентов сохранен в installed_versions.txt
 
+:: =====================================================
+:: ПРОВЕРКА РЕЖИМА ДЛЯ ШАГОВ 3-6
+:: =====================================================
+if /i not "%COLLECTION_MODE%"=="full" (
+    echo.
+    echo -----------------------------------------------------
+    echo Режим "%COLLECTION_MODE%": Шаги 3, 4, 5, 6 пропускаются.
+    echo -----------------------------------------------------
+    goto :Step7
+)
+:: =====================================================
+
 echo [3/8] Копирование логов 1С...
 :: Формируем путь к папке с логами
 set "USER_PATH=%HOMEDRIVE%%HOMEPATH%"
@@ -89,7 +123,6 @@ if exist "%LOGS_SOURCE%" (
             set "FOLDER_DATE=%%~tf"
 
             :: Преобразуем дату для сравнения (формат: ГГГГММДДЧЧММСС)
-            :: Предполагаем формат даты: ДД.ММ.ГГГГ ЧЧ:ММ:СС
             set "DAY=!FOLDER_DATE:~0,2!"
             set "MONTH=!FOLDER_DATE:~3,2!"
             set "YEAR=!FOLDER_DATE:~6,4!"
@@ -370,6 +403,7 @@ echo    - Копирование рабочих пространств завершено
 
 :SkipWorkspaces
 
+:Step7
 echo [7/8] Сбор информации о Java...
 set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
 (
@@ -378,6 +412,7 @@ set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
     echo ========================================
     echo Компьютер: %COMPUTER_NAME%
     echo Дата сбора: %DATE% %TIME%
+    echo Режим сбора: %COLLECTION_MODE%
     echo ========================================
     echo.
     java -version 2>&1
@@ -437,7 +472,11 @@ if exist "%PROCESSES_FILE%" (
     echo ---------------------------------------- >> "%SUMMARY_FILE%"
     type "%PROCESSES_FILE%" | findstr /n "^" | findstr /b "[1-9]: [1-9]: " 2>nul >> "%SUMMARY_FILE%"
 ) else (
-    echo Файл с процессами не создан >> "%SUMMARY_FILE%"
+    if /i "%COLLECTION_MODE%"=="full" (
+        echo Файл с процессами не создан >> "%SUMMARY_FILE%"
+    ) else (
+        echo ПРОПУЩЕНО (Режим Light) >> "%SUMMARY_FILE%"
+    )
 )
 
 (
@@ -467,7 +506,11 @@ if exist "%LOGS_PATH%" (
     :: Показываем файлы в корне logs, если есть
     dir "%LOGS_PATH%" /b /a-d 2>nul >> "%SUMMARY_FILE%"
 ) else (
-    echo Папка с логами не создана >> "%SUMMARY_FILE%"
+    if /i "%COLLECTION_MODE%"=="full" (
+        echo Папка с логами не создана >> "%SUMMARY_FILE%"
+    ) else (
+        echo ПРОПУЩЕНО (Режим Light) >> "%SUMMARY_FILE%"
+    )
 )
 
 (
@@ -491,7 +534,11 @@ if exist "%DEPLOYMENT_ERRORS_PATH%" (
     :: Показываем информационные файлы, если есть
     dir "%DEPLOYMENT_ERRORS_PATH%\*.txt" /b 2>nul >> "%SUMMARY_FILE%"
 ) else (
-    echo Папка с ошибками развертывания не создана >> "%SUMMARY_FILE%"
+    if /i "%COLLECTION_MODE%"=="full" (
+        echo Папка с ошибками развертывания не создана >> "%SUMMARY_FILE%"
+    ) else (
+        echo ПРОПУЩЕНО (Режим Light) >> "%SUMMARY_FILE%"
+    )
 )
 
 (
@@ -507,7 +554,11 @@ if exist "%WORKSPACE_DIR%" (
     echo Скопированные элементы: >> "%SUMMARY_FILE%"
     dir "%WORKSPACE_DIR%" /b 2>nul >> "%SUMMARY_FILE%"
 ) else (
-    echo Папка workspaces не создана >> "%SUMMARY_FILE%"
+    if /i "%COLLECTION_MODE%"=="full" (
+        echo Папка workspaces не создана >> "%SUMMARY_FILE%"
+    ) else (
+        echo ПРОПУЩЕНО (Режим Light) >> "%SUMMARY_FILE%"
+    )
 )
 
 (
@@ -546,7 +597,7 @@ if not exist "%COMPUTERS_LIST_FILE%" (
 )
 
 :: Добавляем запись о текущем компьютере
-echo %DATE% ^| %TIME% ^| %COMPUTER_NAME% >> "%COMPUTERS_LIST_FILE%"
+echo %DATE% ^| %TIME% ^| %COMPUTER_NAME% ^| %COLLECTION_MODE% >> "%COMPUTERS_LIST_FILE%"
 
 echo.
 echo =====================================================
@@ -557,22 +608,29 @@ echo Данные сохранены в:
 echo %COMPUTER_PATH%
 echo.
 echo Структура папок на устройстве %SCRIPT_DRIVE%:
-echo %DATE_FOLDER%\
-echo   +-- computers_list.txt
-echo   +-- %COMPUTER_NAME%\
-echo       +-- %COMPUTER_NAME%_diag.txt
-echo       +-- installed_versions.txt
-echo       +-- processes.txt
-echo       +-- java_report.txt
-echo       +-- summary_report.txt
-echo       +-- logs\
-echo       ^|   +-- [папка_с_самыми_свежими_логами]\
-echo       +-- deployment_errors\
-echo       ^|   +-- 1ce-installer-crash\ (если найдена)
-echo       ^|   +-- 1ce-installer-20*\ (самая свежая)
-echo       +-- workspaces\
-echo           +-- [ИмяПроекта]\      (скопированная папка проекта)
-echo           +-- [ИмяФайла]         (скопированный файл)
+
+if /i "%COLLECTION_MODE%"=="full" (
+    echo %DATE_FOLDER%\
+    echo   ├── computers_list.txt
+    echo   └── %COMPUTER_NAME%\
+    echo       ├── %COMPUTER_NAME%_diag.txt
+    echo       ├── installed_versions.txt
+    echo       ├── processes.txt
+    echo       ├── summary_report.txt
+    echo       ├── logs\
+    echo       │   └── [папка_с_самыми_свежими_логами]\
+    echo       └── deployment_errors\
+    echo           ├── 1ce-installer-crash\ (если найдена)
+    echo           └── 1ce-installer-20*\ (самая свежая)
+) else (
+    echo %DATE_FOLDER%\
+    echo   ├── computers_list.txt
+    echo   └── %COMPUTER_NAME%\
+    echo       ├── %COMPUTER_NAME%_diag.txt
+    echo       ├── installed_versions.txt
+    echo       └── summary_report.txt
+)
+
 echo.
 echo Сводный отчет: %SUMMARY_FILE%
 echo.
