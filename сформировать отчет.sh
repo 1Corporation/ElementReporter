@@ -45,7 +45,7 @@ COLLECTION_MODE="light"
 SCRIPT_PATH="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # ---- Дата в формате ДДММГГ ----
-DATE_FOLDER=$(date +%d%m%y)
+DATE_FOLDER=1CScript_$(date +%d%m%y)
 CURRENT_DATE=$(date +%d.%m.%Y)
 CURRENT_TIME=$(date +%H:%M:%S)
 FULL_DATETIME="$CURRENT_DATE $CURRENT_TIME"

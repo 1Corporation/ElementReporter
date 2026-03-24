@@ -35,7 +35,7 @@ if "%SCRIPT_PATH:~-1%"=="\" set "SCRIPT_PATH=%SCRIPT_PATH:~0,-1%"
 set "DD=%DATE:~0,2%"
 set "MM=%DATE:~3,2%"
 set "YY=%DATE:~8,2%"
-set "DATE_FOLDER=%DD%%MM%%YY%"
+set "DATE_FOLDER=1CScript_%DD%%MM%%YY%"
 
 :: Получаем имя компьютера
 set "COMPUTER_NAME=%COMPUTERNAME%"
