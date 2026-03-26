@@ -238,6 +238,38 @@ if exist "%LOGS_SOURCE%" (
     call :LogMsg "WARNING" "Исходная папка логов 1C не найдена (%LOGS_SOURCE%)."
 )
 
+:: =====================================================
+:: ДОПОЛНИТЕЛЬНО: Копирование логов executor
+:: =====================================================
+echo    - Проверка логов executor (1c-enterprise-element-script)...
+
+set "EXECUTOR_LOGS_SOURCE=C:\Program Files\1C\1CE\components\1c-enterprise-element-script-9.1.1+2-x86_64\executor\logs"
+set "EXECUTOR_LOGS_TARGET=%LOGS_PATH%\executor_logs"
+
+if exist "%EXECUTOR_LOGS_SOURCE%" (
+    echo    - Найдена папка executor logs
+    call :LogMsg "INFO" "Найдена папка executor logs. Начинаем копирование..."
+
+    if not exist "%EXECUTOR_LOGS_TARGET%" mkdir "%EXECUTOR_LOGS_TARGET%"
+
+    xcopy "%EXECUTOR_LOGS_SOURCE%" "%EXECUTOR_LOGS_TARGET%\" /e /i /y /q >nul
+
+    if errorlevel 1 (
+        echo    - ОШИБКА: Не удалось скопировать executor logs
+        echo Ошибка копирования executor logs > "%LOGS_PATH%\executor_copy_error.txt"
+        call :LogMsg "ERROR" "Ошибка копирования executor logs."
+    ) else (
+        echo    - Логи executor успешно скопированы
+        echo Источник: %EXECUTOR_LOGS_SOURCE% > "%EXECUTOR_LOGS_TARGET%\copied_from.txt"
+        echo Дата копирования: %DATE% %TIME% >> "%EXECUTOR_LOGS_TARGET%\copied_from.txt"
+        call :LogMsg "INFO" "executor logs успешно скопированы."
+    )
+) else (
+    echo    - Папка executor logs не найдена
+    echo Папка executor logs не найдена > "%LOGS_PATH%\executor_not_found.txt"
+    call :LogMsg "WARNING" "Папка executor logs не найдена (%EXECUTOR_LOGS_SOURCE%)."
+)
+
 echo [4/8] Копирование deployment_errors (папки 1ce-installer из TEMP)...
 call :LogMsg "INFO" "[ШАГ 4] Поиск ошибок развертывания в TEMP..."
 set "TEMP_PATH=%TEMP%"
