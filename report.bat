@@ -1,4 +1,8 @@
 @echo off
+chcp 65001 >nul
+setlocal enabledelayedexpansion
+
+
 :: [ДОБАВЛЕНО] Проверка прав администратора
 net session >nul 2>&1
 if %errorlevel% neq 0 (
@@ -12,8 +16,6 @@ if %errorlevel% neq 0 (
     timeout /t 5 >nul
 )
 
-chcp 866 >nul
-setlocal enabledelayedexpansion
 
 :: =====================================================
 :: НАСТРОЙКИ СКРИПТА
@@ -160,14 +162,10 @@ echo    - Список компонентов сохранен в installed_vers
 if /i not "%COLLECTION_MODE%"=="full" (
     echo.
     echo -----------------------------------------------------
-    echo Режим "%COLLECTION_MODE%": Шаги 3, 4, 5, 6 пропускаются.
+    echo Режим "%COLLECTION_MODE%": Шаги 4, 5, 6, 7 пропускаются.
     echo -----------------------------------------------------
-    if defined EXEC_LOG (
-        echo [%DATE% %TIME%] [INFO] Пропуск шагов 3-6 согласно режиму LIGHT. >> "%EXEC_LOG%"
-    )
-    goto :Step7
+    goto :Step8
 )
-:: =====================================================
 
 echo [3/8] Копирование логов 1С...
 if defined EXEC_LOG (
@@ -526,28 +524,7 @@ echo    - Копирование рабочих пространств заве�
 
 :SkipWorkspaces
 
-:Step7
-echo [7/8] Сбор информации о Java...
-if defined EXEC_LOG (
-    echo [%DATE% %TIME%] [INFO] [ШАГ 7] Проверка версии Java... >> "%EXEC_LOG%"
-)
-set "JAVA_REPORT=%COMPUTER_PATH%\java_report.txt"
-(
-    echo ========================================
-    echo      ИНФОРМАЦИЯ О JAVA
-    echo ========================================
-    echo Компьютер: %COMPUTER_NAME%
-    echo Дата сбора: %DATE% %TIME%
-    echo Режим сбора: %COLLECTION_MODE%
-    echo ========================================
-    echo.
-    java -version 2>&1
-    echo.
-    echo --- Переменные окружения, связанные с Java ---
-    set | findstr /i "java"
-) > "%JAVA_REPORT%" 2>nul
-echo    - Информация о Java сохранена в java_report.txt
-
+:Step8
 echo [8/8] Создание сводного отчета...
 if defined EXEC_LOG (
     echo [%DATE% %TIME%] [INFO] [ШАГ 8] Генерация сводного отчета... >> "%EXEC_LOG%"
@@ -721,4 +698,41 @@ if not exist "%COMPUTERS_LIST_FILE%" (
     echo ==================================================== > "%COMPUTERS_LIST_FILE%"
     echo       СПИСОК КОМПЬЮТЕРОВ ЗА %DATE_FOLDER% >> "%COMPUTERS_LIST_FILE%"
     echo ==================================================== >> "%COMPUTERS_LIST_FILE%"
-    echo Дата
+
+    echo ==================================================== >> "%COMPUTERS_LIST_FILE%"
+    echo Дата сбора ^| Время ^| Имя компьютера >> "%COMPUTERS_LIST_FILE%"
+    echo ==================================================== >> "%COMPUTERS_LIST_FILE%"
+)
+
+:: Добавляем запись о текущем компьютере
+echo %DATE% ^| %TIME% ^| %COMPUTER_NAME% >> "%COMPUTERS_LIST_FILE%"
+
+echo.
+echo =====================================================
+echo            СБОР ИНФОРМАЦИИ ЗАВЕРШЕН
+echo =====================================================
+echo.
+echo Данные сохранены в:
+echo %COMPUTER_PATH%
+echo.
+echo Структура папок на устройстве %SCRIPT_DRIVE%:
+echo %DATE_FOLDER%\
+echo   +-- computers_list.txt
+echo   +-- %COMPUTER_NAME%\
+echo       +-- %COMPUTER_NAME%_diag.txt
+echo       +-- installed_versions.txt
+echo       +-- processes.txt
+echo       +-- summary_report.txt
+echo       +-- logs\
+echo       ^|   +-- [папка_с_самыми_свежими_логами]\
+echo       +-- deployment_errors\
+echo       ^|   +-- 1ce-installer-crash\ (если найдена)
+echo       ^|   +-- 1ce-installer-20*\ (самая свежая)
+echo       +-- workspaces\
+echo           +-- [ИмяПроекта].txt (список файлов для папок)
+echo           +-- [ИмяФайла].txt (содержимое для файлов)
+echo.
+echo Сводный отчет: %SUMMARY_FILE%
+echo.
+echo Список компьютеров за %DATE_FOLDER%: %COMPUTERS_LIST_FILE%
+pause
